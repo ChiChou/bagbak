@@ -1,0 +1,37 @@
+{
+  "name": "frida-ipa-agent",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "frida-compile src -o dist.js",
+    "watch": "frida-compile src -o dist.js --watch"
+  },
+  "browserify": {
+    "transform": [
+      [
+        "babelify",
+        {
+          "presets": [
+            [
+              "es2015",
+              {
+                "loose": true
+              }
+            ]
+          ],
+          "plugins": [
+            "transform-runtime"
+          ]
+        }
+      ]
+    ]
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "frida-compile": "^5.3.7",
+    "macho": "^1.2.1"
+  }
+}
