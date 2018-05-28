@@ -16,7 +16,7 @@ export function getFileInfo(path) {
   const dict = NSFileManager.defaultManager().attributesOfItemAtPath_error_(urlPath.path(), pErr)
   const err = Memory.readPointer(pErr)
   if (!err.isNull())
-    throw new Error(new ObjC.Object(Memory.readPointer(err)))
+    throw new Error(new ObjC.Object(err))
 
   const lookup = {
     // owner: 'NSFileOwnerAccountName',

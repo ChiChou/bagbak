@@ -74,7 +74,8 @@ function transfer(task) {
   const info = getFileInfo(path)
   const fd = open(name, 0, 0)
   if (fd === -1) {
-    console.warn(`unable to open file ${path}, skip`)
+    if (!path.match(/\.s(inf|up[fpx])$/))
+      console.warn(`unable to open file ${path}, skip`)
     return Promise.resolve()
   }
 
@@ -123,33 +124,49 @@ function transfer(task) {
   })
 }
 
+function relativeTo(base, full) {
+  const a = normalize(base).split('/')
+  const b = normalize(full).split('/')
+
+  let i = 0;
+  while (a[i] === b[i])
+    i++
+  return b.slice(i).join('/')
+}
+
 function normalize(path) {
-  return path.replace(/^\/private\/var\//, '/var/')
+  return (path + '').replace(/^\/private\/var\//, '/var/')
 }
 
 rpc.exports = {
   dump: function() {
     const { NSBundle, NSFileManager, NSDirectoryEnumerator } = ObjC.classes
-    const bundle = NSBundle.mainBundle().bundlePath().toString()
+    const bundle = NSBundle.mainBundle().bundlePath()
+    const appName = bundle.lastPathComponent()
+    const payload = (path) => [appName, path].join('/')
+
     const fileMgr = NSFileManager.defaultManager()
     const modules = Process.enumerateModulesSync()
       .map(mod => Object.assign({}, mod, { path: normalize(mod.path) }))
       .filter(mod => mod.path.startsWith(normalize(bundle)))
       .map(mod => ({
-          relative: mod.path.substr(normalize(bundle).length).replace(/^\//, ''),
+          relative: relativeTo(bundle, mod.path),
           absolute: mod.path,
           decrypted: dump(mod)
         }))
 
+    send({ subject: 'mkdir', path: appName.toString() })
     const hashTable = {}
     for (let mod of modules)
       if (mod.decrypted)
         hashTable[mod.relative] = true
 
-    const tasks = modules
+    const tasks = modules.map(mod => Object.assign(mod, {
+      relative: payload(mod.relative)
+    }))
+    const isDir = Memory.alloc(Process.pointerSize)
     const enumerator = fileMgr.enumeratorAtPath_(bundle)
     let nextObj = null
-    const isDir = Memory.alloc(Process.pointerSize)
     while (nextObj = enumerator.nextObject()) {
       const path = nextObj.toString()
       if (hashTable[path])
@@ -160,11 +177,11 @@ rpc.exports = {
       fileMgr.fileExistsAtPath_isDirectory_(absolute, isDir)
       if (Memory.readPointer(isDir).isNull()) {
         tasks.push({
-          relative: path,
+          relative: payload(path),
           absolute,
         })
       } else {
-        send({ subject: 'mkdir', path })
+        send({ subject: 'mkdir', path: payload(path) })
       }
     }
 

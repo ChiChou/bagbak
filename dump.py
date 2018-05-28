@@ -71,13 +71,13 @@ class Task(object):
 
 class IPADump(object):
 
-    def __init__(self, device, app, verbose=False):
+    def __init__(self, device, app, output=None, verbose=False):
         self.device = device
         self.app = app
         self.session = None
-        self.tempdir = None
+        self.cwd = None
         self.tasks = {}
-        self.script = None
+        self.output = output
         self.verbose = verbose
 
     def on_download_start(self, session, relative, info, **kwargs):
@@ -100,15 +100,15 @@ class IPADump(object):
         del self.tasks[session]
 
     def local_path(self, relative):
-        parent = self.tempdir
-        local_path = os.path.join(parent, relative)
-        if not local_path.startswith(parent):
+        local_path = os.path.join(self.cwd, relative)
+        if not local_path.startswith(self.cwd):
             raise ValueError('path "%s" is illegal' % relative)
         return local_path
 
     def on_mkdir(self, path, **kwargs):
         local_path = self.local_path(path)
         os.mkdir(local_path)
+        return local_path
 
     def on_message(self, msg, data):
         if msg.get('type') != 'send':
@@ -145,20 +145,30 @@ class IPADump(object):
             source = fp.read()
         on_console('info', 'attaching to target')
         pid = self.app.pid or self.device.spawn(self.app.identifier)
-        self.session = self.device.attach(pid)
-        script = self.session.create_script(source)
+        session = self.device.attach(pid)
+        script = session.create_script(source)
         script.set_log_handler(on_console)
         script.on('message', self.on_message)
         script.load()
         script.exports.dump()
+        return session
 
     def run(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            self.tempdir = tempdir
-            self.inject()
-            shutil.make_archive(self.app.name, 'zip', tempdir)
-            print('write to %s.zip' % self.app.name)
-        self.session.detach()
+            self.cwd = os.path.join(tempdir, 'Payload')
+            os.mkdir(self.cwd)
+            session = self.inject()
+            session.detach()
+            zip_name = shutil.make_archive(self.app.name, 'zip', tempdir)
+
+        if self.output is None:
+            ipa_name = '.'.join([self.app.name, 'ipa'])
+        elif os.path.isdir(self.output):
+            ipa_name = os.path.join(self.output, '.'.join(self.app.name, 'ipa'))
+        else:
+            ipa_name = self.output
+        os.rename(zip_name, ipa_name)
+        print('See %s' % ipa_name)
 
 
 def main():
@@ -166,6 +176,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', nargs='?', help='device id (prefix)')
     parser.add_argument('app', help='application name or bundle id')
+    parser.add_argument('-o', '--output', help='output filename')
     parser.add_argument('-v', '--verbose', help='verbose mode')
     args = parser.parse_args()
 
