@@ -5,11 +5,7 @@ Yet another frida based iOS dumpdecrypted
 
 No SSH required. Just `pip install frida`
 
-## Usage
-
-`python3 dump.py com.some.app`
-
-Or
+## Example
 
 ```
 ➜  frida-ipa-dump git:(master) ./dump.py Edge -o ~/Downloads
@@ -43,3 +39,15 @@ Or
 [warning] unable to open file /var/containers/Bundle/Application/7506B185-DBEF-4004-BCDD-C645C3702286/RubyBrowser.app/SC_Info/Manifest.plist, skip
 See Edge.ipa
 ```
+
+## FAQ
+
+### `frida.NotSupportedError: unexpected error while probing dyld of target process`
+
+Double click home, swipe up to kill the App, retry
+
+### `frida.InvalidOperationError: script is destroyed`
+
+App unexpectly crashed. This will only happen when App is launched by frida.
+
+Start the app on device, wait for the initialization, then retry.
