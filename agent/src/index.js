@@ -135,7 +135,8 @@ function relativeTo(base, full) {
 }
 
 function normalize(path) {
-  return (path + '').replace(/^\/private\/var\//, '/var/')
+  return ObjC.classes.NSString.stringWithString_(path)
+    .stringByStandardizingPath().toString()
 }
 
 rpc.exports = {
@@ -185,6 +186,7 @@ rpc.exports = {
       }
     }
 
+    console.log('start downloading files')
     return new Promise((resolve, reject) => {
       const run = () => {
         const task = tasks.pop()

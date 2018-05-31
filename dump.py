@@ -144,8 +144,20 @@ class IPADump(object):
         with codecs.open(agent, 'r', 'utf-8') as fp:
             source = fp.read()
         on_console('info', 'attaching to target')
-        pid = self.app.pid or self.device.spawn(self.app.identifier)
-        session = self.device.attach(pid)
+        pid = self.app.pid
+        spawn = not bool(pid)
+        front = self.device.get_frontmost_application()
+        if pid and front and front.pid != pid:
+            self.device.kill(pid)
+            spawn = True
+
+        if spawn:
+            pid = self.device.spawn(self.app.identifier)
+            session = self.device.attach(pid)
+            self.device.resume(pid)
+        else:
+            session = self.device.attach(pid)
+
         script = session.create_script(source)
         script.set_log_handler(on_console)
         script.on('message', self.on_message)
@@ -159,6 +171,8 @@ class IPADump(object):
             os.mkdir(self.cwd)
             session = self.inject()
             session.detach()
+            if self.verbose:
+                print('File transfer finished, packaging')
             zip_name = shutil.make_archive(self.app.name, 'zip', tempdir)
 
         if self.output is None:
@@ -167,8 +181,9 @@ class IPADump(object):
             ipa_name = os.path.join(self.output, '%s.%s' % (self.app.name, 'ipa'))
         else:
             ipa_name = self.output
+
         os.rename(zip_name, ipa_name)
-        print('See %s' % ipa_name)
+        print('Output: %s' % ipa_name)
 
 
 def main():
