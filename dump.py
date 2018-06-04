@@ -15,7 +15,7 @@ def fatal(reason):
     sys.exit(-1)
 
 
-def dump(app_name_or_id, device_id, **kwargs):
+def find_app(app_name_or_id, device_id):
     if device_id is None:
         dev = frida.get_usb_device()
     else:
@@ -39,8 +39,7 @@ def dump(app_name_or_id, device_id, **kwargs):
             print('%s (%s)' % (app.name, app.identifier))
         fatal('')
 
-    task = IPADump(dev, app, **kwargs)
-    task.run()
+    return dev, app
 
 
 class Task(object):
@@ -195,7 +194,9 @@ def main():
     parser.add_argument('-v', '--verbose', help='verbose mode')
     args = parser.parse_args()
 
-    dump(args.app, args.device, output=args.output, verbose=args.verbose)
+    dev, app = find_app(args.app, args.device)
+    task = IPADump(dev, app, output=args.output, verbose=args.verbose)
+    task.run()
 
 if __name__ == '__main__':
     main()
