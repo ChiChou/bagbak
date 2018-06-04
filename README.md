@@ -42,6 +42,10 @@ See Edge.ipa
 
 ## FAQ
 
+WatchOS related files may cause reinstallation failure, so we'll skip such files by default.
+
+To preserve WatchOS binaries, use `--keep-watch` switch.
+
 ### `frida.NotSupportedError: unexpected error while probing dyld of target process`
 
 Double click home, swipe up to kill the App, retry

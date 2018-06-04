@@ -140,7 +140,7 @@ function normalize(path) {
 }
 
 rpc.exports = {
-  dump: function() {
+  dump: function(opt) {
     const { NSBundle, NSFileManager, NSDirectoryEnumerator } = ObjC.classes
     const bundle = NSBundle.mainBundle().bundlePath()
     const appName = bundle.lastPathComponent()
@@ -172,6 +172,9 @@ rpc.exports = {
       const path = nextObj.toString()
       if (hashTable[path])
         continue
+      
+      if (!opt.keepWatch && (path + '/').startsWith('Watch/'))
+        continue // skip WatchOS related app
 
       const absolute = [bundle, path].join('/')
       Memory.writePointer(isDir, NULL)

@@ -70,7 +70,7 @@ class Task(object):
 
 class IPADump(object):
 
-    def __init__(self, device, app, output=None, verbose=False):
+    def __init__(self, device, app, output=None, verbose=False, keep_watch=False):
         self.device = device
         self.app = app
         self.session = None
@@ -78,6 +78,9 @@ class IPADump(object):
         self.tasks = {}
         self.output = output
         self.verbose = verbose
+        self.opt = {
+            'keepWatch': keep_watch,
+        }
 
     def on_download_start(self, session, relative, info, **kwargs):
         if self.verbose:
@@ -161,7 +164,7 @@ class IPADump(object):
         script.set_log_handler(on_console)
         script.on('message', self.on_message)
         script.load()
-        script.exports.dump()
+        script.exports.dump(self.opt)
         return session
 
     def run(self):
@@ -192,10 +195,15 @@ def main():
     parser.add_argument('app', help='application name or bundle id')
     parser.add_argument('-o', '--output', help='output filename')
     parser.add_argument('-v', '--verbose', help='verbose mode')
+    parser.add_argument('--keep-watch', action='store_true', default=False, help='preserve WatchOS app')
     args = parser.parse_args()
 
     dev, app = find_app(args.app, args.device)
-    task = IPADump(dev, app, output=args.output, verbose=args.verbose)
+
+    task = IPADump(dev, app,
+        keep_watch=args.keep_watch,
+        output=args.output,
+        verbose=args.verbose)
     task.run()
 
 if __name__ == '__main__':
