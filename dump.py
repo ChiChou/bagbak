@@ -6,7 +6,6 @@ import sys
 import tempfile
 import os
 import shutil
-import threading
 
 import frida
 
@@ -21,14 +20,7 @@ def find_app(app_name_or_id, device_id, device_ip):
         if device_ip is None:
             dev = frida.get_usb_device()
         else:
-            dManager = frida.get_device_manager()
-            changed = threading.Event()
             frida.get_device_manager().add_remote_device(device_ip)
-
-            def on_changed():
-                changed.set()
-
-            dManager.on('changed', on_changed)
             dev = frida.get_device("tcp@" + device_ip)
     else:
         try:
@@ -37,7 +29,7 @@ def find_app(app_name_or_id, device_id, device_ip):
         except StopIteration:
             fatal('device id %s not found' % device_id)
 
-    if not (dev.type == 'tether' or dev.type == 'remote'):
+    if dev.type not in ('tether', 'remote'):
         fatal('unable to find device')
 
     try:
