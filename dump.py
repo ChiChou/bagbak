@@ -15,9 +15,13 @@ def fatal(reason):
     sys.exit(-1)
 
 
-def find_app(app_name_or_id, device_id):
+def find_app(app_name_or_id, device_id, device_ip):
     if device_id is None:
-        dev = frida.get_usb_device()
+        if device_ip is None:
+            dev = frida.get_usb_device()
+        else:
+            frida.get_device_manager().add_remote_device(device_ip)
+            dev = frida.get_device("tcp@" + device_ip)
     else:
         try:
             dev = next(dev for dev in frida.enumerate_devices()
@@ -25,7 +29,7 @@ def find_app(app_name_or_id, device_id):
         except StopIteration:
             fatal('device id %s not found' % device_id)
 
-    if dev.type != 'tether':
+    if dev.type not in ('tether', 'remote'):
         fatal('unable to find device')
 
     try:
@@ -192,13 +196,14 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', nargs='?', help='device id (prefix)')
+    parser.add_argument('--ip', nargs='?', help='ip to connect over network')
     parser.add_argument('app', help='application name or bundle id')
     parser.add_argument('-o', '--output', help='output filename')
     parser.add_argument('-v', '--verbose', help='verbose mode')
     parser.add_argument('--keep-watch', action='store_true', default=False, help='preserve WatchOS app')
     args = parser.parse_args()
 
-    dev, app = find_app(args.app, args.device)
+    dev, app = find_app(args.app, args.device, args.ip)
 
     task = IPADump(dev, app,
         keep_watch=args.keep_watch,
