@@ -29,7 +29,7 @@ def find_app(app_name_or_id, device_id, device_ip):
         except StopIteration:
             fatal('device id %s not found' % device_id)
 
-    if dev.type not in ('tether', 'remote'):
+    if dev.type not in ('tether', 'remote', 'usb'):
         fatal('unable to find device')
 
     try:
