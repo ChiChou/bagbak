@@ -55,3 +55,7 @@ Double click home, swipe up to kill the App, retry
 App unexpectly crashed. This will only happen when App is launched by frida.
 
 Start the app on device, wait for the initialization, then retry.
+
+### `frida.ProtocolError: unable to communicate with remote frida-server; please ensure that major versions match and that the remote Frida has the feature you are trying to use`
+
+`pip install -U frida`
