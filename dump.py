@@ -193,6 +193,10 @@ class IPADump(object):
 
 
 def main():
+    import sys
+    if sys.version_info.major < 3:
+        fatal('this tool requires python 3 or higher, detected:\n%s' % sys.version)
+
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', nargs='?', help='device id (prefix)')

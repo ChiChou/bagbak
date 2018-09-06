@@ -1,6 +1,8 @@
 # frida-ipa
 Yet another frida based iOS dumpdecrypted
 
+**Only python3 is supported**
+
 ## Configuration
 
 No SSH required. Just `pip install frida`
