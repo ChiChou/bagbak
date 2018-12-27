@@ -142,13 +142,10 @@ class IPADump(object):
             print('unknown message')
             print(msg)
 
-    def inject(self):
+    def dump(self):
         def on_console(level, text):
             print('[%s]' % level, text)
 
-        agent = os.path.join('agent', 'dist.js')
-        with codecs.open(agent, 'r', 'utf-8') as fp:
-            source = fp.read()
         on_console('info', 'attaching to target')
         pid = self.app.pid
         spawn = not bool(pid)
@@ -164,19 +161,67 @@ class IPADump(object):
         else:
             session = self.device.attach(pid)
 
-        script = session.create_script(source)
+        script = session.create_script(self.agent_source)
         script.set_log_handler(on_console)
         script.on('message', self.on_message)
         script.load()
-        script.exports.dump(self.opt)
-        return session
+
+        plugins = script.exports.plugins()
+        if len(plugins):
+            self.plugins = plugins
+            self.dump_with_plugins()
+        else:
+            script.export.dump(self.opt)
+
+        session.detach()
+
+    def dump_with_plugins(self):
+        # handle plugins
+        springboard = self.device.attach('SpringBoard')
+        spring_script = springboard.create_script(self.agent_source)
+        spring_script.load()
+
+        plugins = {}
+        scripts = {}
+        for identifier in self.plugins:
+            # TodayWidget can only be launched by SpringBoard
+            pid = spring_script.exports.start(identifier)
+            # print('plugin %s, pid=%d' % (identifier, pid))
+            session = self.device.attach(pid)
+            plugins[identifier] = session
+
+            script = session.create_script(self.agent_source)
+            script.load()
+            scripts[identifier] = script
+
+        all_groups = [set(script.exports.groups())
+                      for session in plugins.values()]
+        group = set.intersection(*all_groups).pop()
+        if not group:
+            raise RuntimeError('''App includes extension, but no valid '''
+                               '''app group found. Please file a bug to Github''')
+
+        # todo: dump
+        print('group:', group)
+        for script in scripts.values():
+            # todo: dump
+            pass
+
+        for session in plugins.values():
+            session.detach()
+        springboard.detach()
+
+    def load_agent(self):
+        agent = os.path.join('agent', 'dist.js')
+        with codecs.open(agent, 'r', 'utf-8') as fp:
+            self.agent_source = fp.read()
 
     def run(self):
+        self.load_agent()
         with tempfile.TemporaryDirectory() as tempdir:
             self.cwd = os.path.join(tempdir, 'Payload')
             os.mkdir(self.cwd)
-            session = self.inject()
-            session.detach()
+            self.dump()
             if self.verbose:
                 print('File transfer finished, packaging')
             zip_name = shutil.make_archive(self.app.name, 'zip', tempdir)
@@ -184,7 +229,8 @@ class IPADump(object):
         if self.output is None:
             ipa_name = '.'.join([self.app.name, 'ipa'])
         elif os.path.isdir(self.output):
-            ipa_name = os.path.join(self.output, '%s.%s' % (self.app.name, 'ipa'))
+            ipa_name = os.path.join(self.output, '%s.%s' %
+                                    (self.app.name, 'ipa'))
         else:
             ipa_name = self.output
 
@@ -204,16 +250,18 @@ def main():
     parser.add_argument('app', help='application name or bundle id')
     parser.add_argument('-o', '--output', help='output filename')
     parser.add_argument('-v', '--verbose', help='verbose mode')
-    parser.add_argument('--keep-watch', action='store_true', default=False, help='preserve WatchOS app')
+    parser.add_argument('--keep-watch', action='store_true',
+                        default=False, help='preserve WatchOS app')
     args = parser.parse_args()
 
     dev, app = find_app(args.app, args.device, args.ip)
 
     task = IPADump(dev, app,
-        keep_watch=args.keep_watch,
-        output=args.output,
-        verbose=args.verbose)
+                   keep_watch=args.keep_watch,
+                   output=args.output,
+                   verbose=args.verbose)
     task.run()
+
 
 if __name__ == '__main__':
     main()

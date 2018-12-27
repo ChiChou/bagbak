@@ -140,6 +140,71 @@ function normalize(path) {
 }
 
 rpc.exports = {
+  plugins: function() {
+    const {
+      LSApplicationWorkspace,
+      NSString,
+      NSMutableArray,
+      NSPredicate,
+      NSBundle
+    } = ObjC.classes;
+
+    const args = NSMutableArray.alloc().init();
+    args.setObject_atIndex_(NSBundle.mainBundle().bundleIdentifier(), 0);
+    const fmt = NSString.stringWithString_('containingBundle.applicationIdentifier=%@');
+    const predicate = NSPredicate.predicateWithFormat_argumentArray_(fmt, args);
+    const plugins = LSApplicationWorkspace.defaultWorkspace()
+      .installedPlugins().filteredArrayUsingPredicate_(predicate);
+    const result = [];
+    for (let i = 0; i < plugins.count(); i++) {
+      result.push(plugins.objectAtIndex_(i).pluginIdentifier() + '');
+    }
+    return result;
+  },
+  groups() {
+    const createFromSelf = new NativeFunction(
+      Module.findExportByName('Security', 'SecTaskCreateFromSelf'),
+      'pointer', ['pointer']);
+    const task = createFromSelf(NULL);
+    const copyTaskEnt = new NativeFunction(
+      Module.findExportByName('Security', 'SecTaskCopyValueForEntitlement'),
+      'pointer', ['pointer', 'pointer', 'pointer']);
+    const key = ObjC.classes.NSString.stringWithString_('com.apple.security.application-groups')
+    // todo: copy to array
+    const value = new ObjC.Object(copyTaskEnt(task, key, NULL));
+    const result = [];
+    for (let i = 0; i < value.count(); i++) {
+      result.push(value.objectAtIndex_(i) + '');
+    }
+    return result;
+  },
+  start: function(id) {
+    const { NSExtension, NSString } = ObjC.classes;
+    const pErr = Memory.alloc(Process.pointerSize);
+    const identifier = NSString.stringWithString_(id);
+    const extension = NSExtension.extensionWithIdentifier_error_(identifier, pErr);
+    const err = Memory.readPointer(pErr);
+    if (!err.isNull()) {
+      console.log('err:', new ObjC.Object(err))
+      return Promise.reject(new ObjC.Object(err).toString())
+    }
+
+    if (!extension) {
+      return Promise.reject('unable to create extension ' + id);
+    }
+
+    // https://ianmcdowell.net/blog/nsextension/
+    return new Promise((resolve, reject) => {
+      extension.beginExtensionRequestWithInputItems_completion_(NULL, new ObjC.Block({
+        retType: 'void',
+        argTypes: ['object'],
+        implementation(requestIdentifier) {
+          const pid = extension.pidForRequestIdentifier_(requestIdentifier);
+          resolve(pid);
+        }
+      }));
+    });
+  },
   dump: function(opt) {
     const { NSBundle, NSFileManager, NSDirectoryEnumerator } = ObjC.classes
     const bundle = NSBundle.mainBundle().bundlePath()
@@ -172,7 +237,7 @@ rpc.exports = {
       const path = nextObj.toString()
       if (hashTable[path])
         continue
-      
+
       if (!opt.keepWatch && (path + '/').startsWith('Watch/'))
         continue // skip WatchOS related app
 
