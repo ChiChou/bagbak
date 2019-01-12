@@ -28,7 +28,7 @@ function dump(module, dest) {
   console.log('decrypting module', module.name)
 
   const tmp = [dest, '/', name, '.decrypted'].join('')
-  
+
   // copy encrypted
   const err = Memory.alloc(Process.pointerSize)
   const fileManager = ObjC.classes.NSFileManager.defaultManager()
@@ -40,7 +40,7 @@ function dump(module, dest) {
     console.error(`failed to copy file: ${new ObjC.Object(desc).toString()}`)
     return null
   }
-  
+
   const output = Memory.allocUtf8String(tmp)
   const outfd = open(output, O_RDWR, 0)
   // skip fat header
@@ -102,6 +102,14 @@ async function transfer(filename) {
   })
 
   fs.unlinkSync(filename)
+
+  try {
+    const SOUND = 1007
+    const playSound = Module.findExportByName('AudioToolbox', 'AudioServicesPlaySystemSound')
+    new NativeFunction(playSound, 'void', ['int'])(SOUND)
+  } catch (e) {
+
+  }
 }
 
 function relativeTo(base, full) {
