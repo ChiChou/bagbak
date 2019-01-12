@@ -1,6 +1,6 @@
 {
   "name": "frida-ipa-agent",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -22,7 +22,9 @@
             ]
           ],
           "plugins": [
-            "transform-runtime"
+            "transform-runtime",
+            "transform-regenerator",
+            "transform-async-functions"
           ]
         }
       ]
@@ -31,7 +33,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "frida-compile": "^5.3.7",
     "macho": "^1.3.0"
+  },
+  "devDependencies": {
+    "frida-compile": "^5.3.7",
+    "babel-plugin-transform-async-functions": "^6.22.0",
+    "babel-plugin-transform-regenerator": "^6.26.0"
   }
 }

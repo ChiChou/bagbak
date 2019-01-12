@@ -1,7 +1,7 @@
 import fs from 'frida-fs'
 import macho from 'macho'
 
-import archive from './libarchive'
+import libarchive from './libarchive'
 
 import { open, close, write, lseek, unlink, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
 import ReadOnlyMemoryBuffer from './romembuf'
@@ -24,6 +24,7 @@ function dump(module, dest) {
     console.error(`unable to read file ${module.path}, dump failed`)
     return null
   }
+  close(fd)
 
   console.log('decrypting module', module.name)
 
@@ -31,19 +32,8 @@ function dump(module, dest) {
   const output = Memory.allocUtf8String(tmp)
 
   // copy encrypted
-  const err = Memory.alloc(Process.pointerSize)
-  const fileManager = ObjC.classes.NSFileManager.defaultManager()
-  if (fileManager.fileExistsAtPath_(tmp))
-    fileManager.removeItemAtPath_error_(tmp, err)
-  fileManager.copyItemAtPath_toPath_error_(module.path, tmp, err)
-  const desc = Memory.readPointer(err)
-  if (!desc.isNull()) {
-    console.error(`failed to copy file: ${new ObjC.Object(desc).toString()}`)
-    return null
-  }
-
+  fs.createReadStream(module.path).pipe(fs.createWriteStream(tmp))
   const outfd = open(output, O_RDWR, 0)
-
   // skip fat header
   const fatOffset = Process.findRangeByAddress(module.base).file.offset
 
@@ -171,6 +161,9 @@ rpc.exports = {
     }
     return result;
   },
+  root() {
+    return ObjC.classes.NSBundle.mainBundle().bundlePath().toString()
+  },
   groups() {
     const createFromSelf = new NativeFunction(
       Module.findExportByName('Security', 'SecTaskCreateFromSelf'),
@@ -215,78 +208,160 @@ rpc.exports = {
       }));
     });
   },
-  dump(opt) {
-    const { NSBundle, NSFileManager, NSDirectoryEnumerator } = ObjC.classes
-    const bundle = NSBundle.mainBundle().bundlePath()
-    const appName = bundle.lastPathComponent()
-    const payload = (path) => [appName, path].join('/')
-
-    const fileMgr = NSFileManager.defaultManager()
+  decrypt(root, dest) {
     const modules = Process.enumerateModulesSync()
       .map(mod => Object.assign({}, mod, { path: normalize(mod.path) }))
-      .filter(mod => mod.path.startsWith(normalize(bundle)))
+      .filter(mod => mod.path.startsWith(normalize(root)))
       .map(mod => ({
-          relative: relativeTo(bundle, mod.path),
-          absolute: mod.path,
-          decrypted: dump(mod, opt.dest || NSTemporaryDirectory())
-        }))
+        relative: relativeTo(root, mod.path),
+        absolute: mod.path,
+        decrypted: dump(mod, dest)
+      }))
 
-    send({ subject: 'mkdir', path: appName.toString() })
-    const progress = opt.progress || {}
-    for (let mod of modules)
-      if (mod.decrypted)
-      progress[mod.relative] = true
+    return modules
+  },
+  async archive(root, dest, decrypted, opt) {
+    const pkgName = `${dest}/archive.ipa`
+    const a = libarchive.writeNew()
+    libarchive.writeSetFormatZip(a)
+    libarchive.writeOpenFilename(a, Memory.allocUtf8String(pkgName))
 
-    send({
-      subject: 'decryption',
-      event: 'progress',
-      progress,
-    })
+    const { NSFileManager } = ObjC.classes
+    const fileMgr = NSFileManager.defaultManager()
+    const enumerator = fileMgr.enumeratorAtPath_(root)
 
-    const tasks = modules.map(mod => Object.assign(mod, {
-      relative: payload(mod.relative)
-    }))
-    const isDir = Memory.alloc(Process.pointerSize)
-    const enumerator = fileMgr.enumeratorAtPath_(bundle)
+    const bufferSize = 16 * 1024 * 1024
+    const buf = Memory.alloc(bufferSize)
+
+    const timestamp = date => Math.floor(date.getTime() / 1000)
+    const lookup = {}
+    for (let mod of decrypted)
+      lookup[mod.relative] = mod
+
     let nextObj = null
     while (nextObj = enumerator.nextObject()) {
       const path = nextObj.toString()
-      if (progress[path])
+      if (/(\/Plugins\/(.*)\.appex\/)?SC_Info\//.test(path))
         continue
 
-      if (!opt.keepWatch && (path + '/').startsWith('Watch/'))
-        continue // skip WatchOS related app
-
-      const absolute = [bundle, path].join('/')
-      Memory.writePointer(isDir, NULL)
-      fileMgr.fileExistsAtPath_isDirectory_(absolute, isDir)
-      if (Memory.readPointer(isDir).isNull()) {
-        tasks.push({
-          relative: payload(path),
-          absolute,
-        })
-      } else {
-        send({ subject: 'mkdir', path: payload(path) })
+      const absolute = [root, path].join('/')
+      const st = fs.statSync(absolute)
+      if (st.mode & fs.constants.S_IFDIR) {
+        // doesn't need to handle?
+        continue
+      } else if (!(st.mode & fs.constants.S_IFREG)) {
+        console.warn('unknown file mode', absolute)
       }
+
+      const entry = libarchive.entryNew()
+      libarchive.entrySetPathname(entry, Memory.allocUtf8String(path))
+      libarchive.entrySetSize(entry, st.size)
+      libarchive.entrySetFiletype(entry, fs.constants.S_IFREG)
+      libarchive.entrySetPerm(entry, st.mode & 0o777)
+      libarchive.entrySetCtime(entry, timestamp(st.ctime), 0)
+      libarchive.entrySetMtime(entry, timestamp(st.mtime), 0)
+      libarchive.writeHeader(a, entry)
+
+      // const stream = fs.createReadStream(absolute)
+      
+      const filename = path in lookup ? lookup[path].decrypted : absolute
+      const fd = open(Memory.allocUtf8String(filename), 0)
+      if (fd === -1) {
+        console.warn('unable to open', absolute)
+        continue
+      }
+      
+      const stream = new UnixInputStream(fd, { autoClose: true });
+      let eof = false
+      while (!eof) {
+        const bytes = await stream.read(bufferSize)
+        eof = bytes.byteLength < bufferSize
+        // damn memcpy
+        Memory.writeByteArray(buf, bytes)
+        libarchive.writeData(a, buf, bytes.byteLength)
+      }
+      if (opt.verbose) console.log('compress', path)
+      libarchive.writeFinishEntry(a)
+      libarchive.entryFree(entry)
     }
 
-    console.log('start downloading files')
-    return new Promise((resolve, reject) => {
-      const run = () => {
-        const task = tasks.pop()
-        if (task)
-          transfer(task).then(run)
-        else
-          resolve()
-      }
-      run()
-    })
+    libarchive.writeFinish(a)
+
+    console.log('write to', pkgName)
+    // todo: Download
   },
+  // dump(opt) {
+  //   const { NSBundle, NSFileManager } = ObjC.classes
+  //   const bundle = NSBundle.mainBundle().bundlePath()
+  //   const appName = bundle.lastPathComponent()
+  //   const payload = (path) => [appName, path].join('/')
+
+  //   const fileMgr = NSFileManager.defaultManager()
+  //   const modules = Process.enumerateModulesSync()
+  //     .map(mod => Object.assign({}, mod, { path: normalize(mod.path) }))
+  //     .filter(mod => mod.path.startsWith(normalize(bundle)))
+  //     .map(mod => ({
+  //       relative: relativeTo(bundle, mod.path),
+  //       absolute: mod.path,
+  //       decrypted: dump(mod, opt.dest || NSTemporaryDirectory())
+  //     }))
+
+  //   send({ subject: 'mkdir', path: appName.toString() })
+  //   const progress = opt.progress || {}
+  //   for (let mod of modules)
+  //     if (mod.decrypted)
+  //       progress[mod.relative] = true
+
+  //   send({
+  //     subject: 'decryption',
+  //     event: 'progress',
+  //     progress,
+  //   })
+
+  //   const tasks = modules.map(mod => Object.assign(mod, {
+  //     relative: payload(mod.relative)
+  //   }))
+  //   const isDir = Memory.alloc(Process.pointerSize)
+  //   const enumerator = fileMgr.enumeratorAtPath_(bundle)
+  //   let nextObj = null
+  //   while (nextObj = enumerator.nextObject()) {
+  //     const path = nextObj.toString()
+  //     if (progress[path])
+  //       continue
+
+  //     if (!opt.keepWatch && (path + '/').startsWith('Watch/'))
+  //       continue // skip WatchOS related app
+
+  //     const absolute = [bundle, path].join('/')
+  //     Memory.writePointer(isDir, NULL)
+  //     fileMgr.fileExistsAtPath_isDirectory_(absolute, isDir)
+  //     if (Memory.readPointer(isDir).isNull()) {
+  //       tasks.push({
+  //         relative: payload(path),
+  //         absolute,
+  //       })
+  //     } else {
+  //       send({ subject: 'mkdir', path: payload(path) })
+  //     }
+  //   }
+
+  //   console.log('start downloading files')
+  //   return new Promise((resolve, reject) => {
+  //     const run = () => {
+  //       const task = tasks.pop()
+  //       if (task)
+  //         transfer(task).then(run)
+  //       else
+  //         resolve()
+  //     }
+  //     run()
+  //   })
+  // },
   skipPkdValidationFor(pid) {
     if ('PKDPlugIn' in ObjC.classes) {
       const method = ObjC.classes.PKDPlugIn['- allowForClient:']
       const original = method.implementation
-      method.implementation = ObjC.implement(method, function(self, sel, conn) {
+      method.implementation = ObjC.implement(method, function (self, sel, conn) {
         // race condition huh? we don't care
         return pid === new ObjC.Object(conn).pid() ? NULL : original.call(this, arguments)
       })

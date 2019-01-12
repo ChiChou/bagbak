@@ -208,18 +208,20 @@ class IPADump(object):
             raise RuntimeError('''App includes extension, but no valid '''
                                '''app group found. Please file a bug to Github''')
 
-        print('group:', group)
+        root = self.script.exports.root()
         container = self.script.exports.path_for_group(group)
+        print('group:', group)
         print('container:', container)
+        print('root:', root)
         self.opt['dest'] = container
 
-        # clean up
+        decrypted = self.script.exports.decrypt(root, container)
         for plugin in spawned:
-            plugin.script.exports.dump(self.opt)
+            decrypted += plugin.script.exports.decrypt(root, container)
             plugin.session.detach()
             self.device.kill(plugin.pid)
-
-        self.script.exports.dump(self.opt)
+        
+        self.script.exports.archive(root, container, decrypted, self.opt)
 
     def load_agent(self):
         agent = os.path.join('agent', 'dist.js')
