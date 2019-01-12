@@ -8,7 +8,7 @@ import ReadOnlyMemoryBuffer from './romembuf'
 import { NSTemporaryDirectory, getFileInfo } from './foundation'
 
 
-function dump(module) {
+function dump(module, dest) {
   const { name } = module
   const buffer = new ReadOnlyMemoryBuffer(module.base, module.size)
   const info = macho.parse(buffer)
@@ -27,7 +27,7 @@ function dump(module) {
 
   console.log('decrypting module', module.name)
 
-  const tmp = [NSTemporaryDirectory(), name, '.decrypted'].join('')
+  const tmp = [dest, '/', name, '.decrypted'].join('')
   const output = Memory.allocUtf8String(tmp)
 
   // copy encrypted
@@ -75,6 +75,7 @@ function transfer(task) {
   const watermark = 10 * 1024 * 1024
   const subject = 'download'
   const info = getFileInfo(path)
+
   const fd = open(name, 0, 0)
   if (fd === -1) {
     if (!path.match(/\.s(inf|up[fpx])$/))
@@ -227,14 +228,20 @@ rpc.exports = {
       .map(mod => ({
           relative: relativeTo(bundle, mod.path),
           absolute: mod.path,
-          decrypted: dump(mod)
+          decrypted: dump(mod, opt.dest || NSTemporaryDirectory())
         }))
 
     send({ subject: 'mkdir', path: appName.toString() })
-    const hashTable = {}
+    const progress = opt.progress || {}
     for (let mod of modules)
       if (mod.decrypted)
-        hashTable[mod.relative] = true
+      progress[mod.relative] = true
+
+    send({
+      subject: 'decryption',
+      event: 'progress',
+      progress,
+    })
 
     const tasks = modules.map(mod => Object.assign(mod, {
       relative: payload(mod.relative)
@@ -244,7 +251,7 @@ rpc.exports = {
     let nextObj = null
     while (nextObj = enumerator.nextObject()) {
       const path = nextObj.toString()
-      if (hashTable[path])
+      if (progress[path])
         continue
 
       if (!opt.keepWatch && (path + '/').startsWith('Watch/'))

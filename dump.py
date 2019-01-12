@@ -85,6 +85,7 @@ class IPADump(object):
         self.verbose = verbose
         self.opt = {
             'keepWatch': keep_watch,
+            'progress': {},
         }
 
     def on_download_start(self, session, relative, info, **kwargs):
@@ -133,6 +134,9 @@ class IPADump(object):
             }
             method = method_mapping[payload.get('event')]
             method(data=data, **payload)
+        elif subject == 'decryption' and payload.get('event') == 'progress':
+            print('progress')
+            self.opt['progress'] = msg.get('progress')
         elif subject == 'finish':
             print('bye')
             self.session.detach()
@@ -207,13 +211,15 @@ class IPADump(object):
         print('group:', group)
         container = self.script.exports.path_for_group(group)
         print('container:', container)
-        # todo: dump
+        self.opt['dest'] = container
 
         # clean up
         for plugin in spawned:
+            plugin.script.exports.dump(self.opt)
             plugin.session.detach()
             self.device.kill(plugin.pid)
 
+        self.script.exports.dump(self.opt)
 
     def load_agent(self):
         agent = os.path.join('agent', 'dist.js')
