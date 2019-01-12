@@ -49,10 +49,10 @@ def find_app(app_name_or_id, device_id, device_ip):
 
 class Task(object):
 
-    def __init__(self, session, path, info):
+    def __init__(self, session, path, size):
         self.session = session
         self.path = path
-        self.info = info
+        self.size = size
         self.file = open(self.path, 'wb')
 
     def write(self, data):
@@ -60,14 +60,6 @@ class Task(object):
 
     def finish(self):
         self.close()
-        time_pair = tuple(self.info.get(key)
-                          for key in ('creation', 'modification'))
-        try:
-            if all(time_pair):
-                os.utime(self.path, time_pair)
-            os.chmod(self.path, self.info['permission'])
-        except FileNotFoundError:
-            pass
 
     def close(self):
         self.file.close()
@@ -85,14 +77,11 @@ class IPADump(object):
         self.verbose = verbose
         self.opt = {
             'keepWatch': keep_watch,
-            'progress': {},
         }
+        self.ipa_name = ''
 
-    def on_download_start(self, session, relative, info, **kwargs):
-        if self.verbose:
-            print('downloading', relative)
-        local_path = self.local_path(relative)
-        self.tasks[session] = Task(session, local_path, info)
+    def on_download_start(self, session, size, **kwargs):
+        self.tasks[session] = Task(session, self.ipa_name, size)
 
     def on_download_data(self, session, data, **kwargs):
         self.tasks[session].write(data)
@@ -106,17 +95,6 @@ class IPADump(object):
     def close_session(self, session):
         self.tasks[session].finish()
         del self.tasks[session]
-
-    def local_path(self, relative):
-        local_path = os.path.join(self.cwd, relative)
-        if not local_path.startswith(self.cwd):
-            raise ValueError('path "%s" is illegal' % relative)
-        return local_path
-
-    def on_mkdir(self, path, **kwargs):
-        local_path = self.local_path(path)
-        os.mkdir(local_path)
-        return local_path
 
     def on_message(self, msg, data):
         if msg.get('type') != 'send':
@@ -134,21 +112,18 @@ class IPADump(object):
             }
             method = method_mapping[payload.get('event')]
             method(data=data, **payload)
-        elif subject == 'decryption' and payload.get('event') == 'progress':
-            print('progress')
-            self.opt['progress'] = msg.get('progress')
         elif subject == 'finish':
             print('bye')
             self.session.detach()
             sys.exit(0)
-        elif subject == 'mkdir':
-            self.on_mkdir(**payload)
         else:
             print('unknown message')
             print(msg)
 
     def dump(self):
         def on_console(level, text):
+            if not self.verbose and level == 'info':
+                return
             print('[%s]' % level, text)
 
         on_console('info', 'attaching to target')
@@ -171,7 +146,6 @@ class IPADump(object):
         script.on('message', self.on_message)
         script.load()
 
-        # todo: refactor me
         self.plugins = script.exports.plugins()
         self.script = script
         if len(self.plugins):
@@ -183,7 +157,13 @@ class IPADump(object):
 
     def dump_with_plugins(self):
         # handle plugins
-        pkd = self.device.attach('pkd')
+        try:
+            pkd = self.device.attach('pkd')
+        except frida.ProcessNotFoundError:
+            pid = self.device.spawn(['/bin/launchctl', 'start', 'com.apple.pluginkit.pkd'])
+            self.device.resume(pid)
+            # retry
+            pkd = self.device.attach('pkd')
         pkd_script = pkd.create_script(self.agent_source)
         pkd_script.load()
         pkd_script.exports.skip_pkd_validation_for(self.app.pid)
@@ -210,9 +190,10 @@ class IPADump(object):
 
         root = self.script.exports.root()
         container = self.script.exports.path_for_group(group)
-        print('group:', group)
-        print('container:', container)
-        print('root:', root)
+        if self.verbose:
+            print('group:', group)
+            print('container:', container)
+            print('root:', root)
         self.opt['dest'] = container
 
         decrypted = self.script.exports.decrypt(root, container)
@@ -230,14 +211,6 @@ class IPADump(object):
 
     def run(self):
         self.load_agent()
-        with tempfile.TemporaryDirectory() as tempdir:
-            self.cwd = os.path.join(tempdir, 'Payload')
-            os.mkdir(self.cwd)
-            self.dump()
-            if self.verbose:
-                print('File transfer finished, packaging')
-            zip_name = shutil.make_archive(self.app.name, 'zip', tempdir)
-
         if self.output is None:
             ipa_name = '.'.join([self.app.name, 'ipa'])
         elif os.path.isdir(self.output):
@@ -245,8 +218,9 @@ class IPADump(object):
                                     (self.app.name, 'ipa'))
         else:
             ipa_name = self.output
-
-        os.rename(zip_name, ipa_name)
+        
+        self.ipa_name = ipa_name
+        self.dump()
         print('Output: %s' % ipa_name)
 
 
@@ -261,7 +235,7 @@ def main():
     parser.add_argument('--ip', nargs='?', help='ip to connect over network')
     parser.add_argument('app', help='application name or bundle id')
     parser.add_argument('-o', '--output', help='output filename')
-    parser.add_argument('-v', '--verbose', help='verbose mode')
+    parser.add_argument('-v', '--verbose', help='verbose mode', action='store_true')
     parser.add_argument('--keep-watch', action='store_true',
                         default=False, help='preserve WatchOS app')
     args = parser.parse_args()

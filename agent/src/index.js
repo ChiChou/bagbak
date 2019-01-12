@@ -3,9 +3,8 @@ import macho from 'macho'
 
 import libarchive from './libarchive'
 
-import { open, close, write, lseek, unlink, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
+import { open, close, write, lseek, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
 import ReadOnlyMemoryBuffer from './romembuf'
-import { NSTemporaryDirectory, getFileInfo } from './foundation'
 
 
 function dump(module, dest) {
@@ -29,10 +28,20 @@ function dump(module, dest) {
   console.log('decrypting module', module.name)
 
   const tmp = [dest, '/', name, '.decrypted'].join('')
-  const output = Memory.allocUtf8String(tmp)
-
+  
   // copy encrypted
-  fs.createReadStream(module.path).pipe(fs.createWriteStream(tmp))
+  const err = Memory.alloc(Process.pointerSize)
+  const fileManager = ObjC.classes.NSFileManager.defaultManager()
+  if (fileManager.fileExistsAtPath_(tmp))
+    fileManager.removeItemAtPath_error_(tmp, err)
+  fileManager.copyItemAtPath_toPath_error_(module.path, tmp, err)
+  const desc = Memory.readPointer(err)
+  if (!desc.isNull()) {
+    console.error(`failed to copy file: ${new ObjC.Object(desc).toString()}`)
+    return null
+  }
+  
+  const output = Memory.allocUtf8String(tmp)
   const outfd = open(output, O_RDWR, 0)
   // skip fat header
   const fatOffset = Process.findRangeByAddress(module.base).file.offset
@@ -56,66 +65,43 @@ function dump(module, dest) {
 }
 
 
-function transfer(task) {
-  const { decrypted, relative, absolute } = task
-
-  const path = decrypted || absolute
+async function transfer(filename) {
   const session = Math.random().toString(36).substr(2)
-  const name = Memory.allocUtf8String(path)
   const watermark = 10 * 1024 * 1024
   const subject = 'download'
-  const info = getFileInfo(path)
+  const { size } = fs.statSync(filename)
+  const fd = open(Memory.allocUtf8String(filename), O_RDONLY, 0)
 
-  const fd = open(name, 0, 0)
-  if (fd === -1) {
-    if (!path.match(/\.s(inf|up[fpx])$/))
-      console.warn(`unable to open file ${path}, skip`)
-    return Promise.resolve()
-  }
+  if (fd === -1)
+    throw new Error('fatal error: unable to download archive')
 
-  return new Promise((resolve, reject) => {
-    const stream = new UnixInputStream(fd, { autoClose: true })
-    const read = () => {
-      stream.read(watermark).then((buffer) => {
-        send({
-          subject,
-          event: 'data',
-          session,
-        }, buffer)
-        if (buffer.byteLength === watermark) {
-          setImmediate(read)
-        } else {
-          send({
-            subject,
-            event: 'end',
-            session,
-          })
+  const stream = new UnixInputStream(fd, { autoClose: true })
+  let eof = false
+  send({
+    subject,
+    event: 'start',
+    session,
+    size,
+  })
 
-          // delete intermediate file
-          if (decrypted) {
-            unlink(Memory.allocUtf8String(decrypted))
-          }
-          resolve()
-        }
-      }).catch((error) => {
-        send({
-          subject,
-          event: 'error',
-          session,
-          error: error.message,
-        })
-        reject(error)
-      })
-    }
+  while (!eof) {
+    const bytes = await stream.read(watermark)
+    eof = bytes.byteLength < watermark
+
     send({
       subject,
-      event: 'start',
-      relative,
+      event: 'data',
       session,
-      info,
-    })
-    setImmediate(read)
+    }, bytes)
+  }
+
+  send({
+    subject,
+    event: 'end',
+    session,
   })
+
+  fs.unlinkSync(filename)
 }
 
 function relativeTo(base, full) {
@@ -217,14 +203,13 @@ rpc.exports = {
         absolute: mod.path,
         decrypted: dump(mod, dest)
       }))
-
-    return modules
+    return modules.filter(mod => mod.decrypted)
   },
   async archive(root, dest, decrypted, opt) {
-    const pkgName = `${dest}/archive.ipa`
-    const a = libarchive.writeNew()
-    libarchive.writeSetFormatZip(a)
-    libarchive.writeOpenFilename(a, Memory.allocUtf8String(pkgName))
+    const pkg = `${dest}/archive.ipa`
+    const ar = libarchive.writeNew()
+    libarchive.writeSetFormatZip(ar)
+    libarchive.writeOpenFilename(ar, Memory.allocUtf8String(pkg))
 
     const { NSFileManager } = ObjC.classes
     const fileMgr = NSFileManager.defaultManager()
@@ -241,9 +226,6 @@ rpc.exports = {
     let nextObj = null
     while (nextObj = enumerator.nextObject()) {
       const path = nextObj.toString()
-      if (/(\/Plugins\/(.*)\.appex\/)?SC_Info\//.test(path))
-        continue
-
       const absolute = [root, path].join('/')
       const st = fs.statSync(absolute)
       if (st.mode & fs.constants.S_IFDIR) {
@@ -260,17 +242,19 @@ rpc.exports = {
       libarchive.entrySetPerm(entry, st.mode & 0o777)
       libarchive.entrySetCtime(entry, timestamp(st.ctime), 0)
       libarchive.entrySetMtime(entry, timestamp(st.mtime), 0)
-      libarchive.writeHeader(a, entry)
+      libarchive.writeHeader(ar, entry)
 
       // const stream = fs.createReadStream(absolute)
-      
       const filename = path in lookup ? lookup[path].decrypted : absolute
-      const fd = open(Memory.allocUtf8String(filename), 0)
+      const fd = open(Memory.allocUtf8String(filename), O_RDONLY, 0)
       if (fd === -1) {
+        if (/\/CodeResources\//.test(path) || /(\/Plugins\/(.*)\.appex\/)?SC_Info\//.test(path))
+          continue
+
         console.warn('unable to open', absolute)
         continue
       }
-      
+
       const stream = new UnixInputStream(fd, { autoClose: true });
       let eof = false
       while (!eof) {
@@ -278,85 +262,22 @@ rpc.exports = {
         eof = bytes.byteLength < bufferSize
         // damn memcpy
         Memory.writeByteArray(buf, bytes)
-        libarchive.writeData(a, buf, bytes.byteLength)
+        libarchive.writeData(ar, buf, bytes.byteLength)
       }
-      if (opt.verbose) console.log('compress', path)
-      libarchive.writeFinishEntry(a)
+
+      // delete decrypted file
+      if (path in lookup)
+        fs.unlinkSync(filename)
+
+      console.log('compress:', path)
+      libarchive.writeFinishEntry(ar)
       libarchive.entryFree(entry)
     }
 
-    libarchive.writeFinish(a)
-
-    console.log('write to', pkgName)
-    // todo: Download
+    libarchive.writeFinish(ar)
+    console.log('archive:', pkg)
+    return transfer(pkg)
   },
-  // dump(opt) {
-  //   const { NSBundle, NSFileManager } = ObjC.classes
-  //   const bundle = NSBundle.mainBundle().bundlePath()
-  //   const appName = bundle.lastPathComponent()
-  //   const payload = (path) => [appName, path].join('/')
-
-  //   const fileMgr = NSFileManager.defaultManager()
-  //   const modules = Process.enumerateModulesSync()
-  //     .map(mod => Object.assign({}, mod, { path: normalize(mod.path) }))
-  //     .filter(mod => mod.path.startsWith(normalize(bundle)))
-  //     .map(mod => ({
-  //       relative: relativeTo(bundle, mod.path),
-  //       absolute: mod.path,
-  //       decrypted: dump(mod, opt.dest || NSTemporaryDirectory())
-  //     }))
-
-  //   send({ subject: 'mkdir', path: appName.toString() })
-  //   const progress = opt.progress || {}
-  //   for (let mod of modules)
-  //     if (mod.decrypted)
-  //       progress[mod.relative] = true
-
-  //   send({
-  //     subject: 'decryption',
-  //     event: 'progress',
-  //     progress,
-  //   })
-
-  //   const tasks = modules.map(mod => Object.assign(mod, {
-  //     relative: payload(mod.relative)
-  //   }))
-  //   const isDir = Memory.alloc(Process.pointerSize)
-  //   const enumerator = fileMgr.enumeratorAtPath_(bundle)
-  //   let nextObj = null
-  //   while (nextObj = enumerator.nextObject()) {
-  //     const path = nextObj.toString()
-  //     if (progress[path])
-  //       continue
-
-  //     if (!opt.keepWatch && (path + '/').startsWith('Watch/'))
-  //       continue // skip WatchOS related app
-
-  //     const absolute = [bundle, path].join('/')
-  //     Memory.writePointer(isDir, NULL)
-  //     fileMgr.fileExistsAtPath_isDirectory_(absolute, isDir)
-  //     if (Memory.readPointer(isDir).isNull()) {
-  //       tasks.push({
-  //         relative: payload(path),
-  //         absolute,
-  //       })
-  //     } else {
-  //       send({ subject: 'mkdir', path: payload(path) })
-  //     }
-  //   }
-
-  //   console.log('start downloading files')
-  //   return new Promise((resolve, reject) => {
-  //     const run = () => {
-  //       const task = tasks.pop()
-  //       if (task)
-  //         transfer(task).then(run)
-  //       else
-  //         resolve()
-  //     }
-  //     run()
-  //   })
-  // },
   skipPkdValidationFor(pid) {
     if ('PKDPlugIn' in ObjC.classes) {
       const method = ObjC.classes.PKDPlugIn['- allowForClient:']
