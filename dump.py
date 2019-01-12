@@ -6,6 +6,7 @@ import sys
 import tempfile
 import os
 import shutil
+from collections import namedtuple
 
 import frida
 
@@ -166,9 +167,10 @@ class IPADump(object):
         script.on('message', self.on_message)
         script.load()
 
-        plugins = script.exports.plugins()
-        if len(plugins):
-            self.plugins = plugins
+        # todo: refactor me
+        self.plugins = script.exports.plugins()
+        self.script = script
+        if len(self.plugins):
             self.dump_with_plugins()
         else:
             script.export.dump(self.opt)
@@ -177,39 +179,41 @@ class IPADump(object):
 
     def dump_with_plugins(self):
         # handle plugins
-        springboard = self.device.attach('SpringBoard')
-        spring_script = springboard.create_script(self.agent_source)
-        spring_script.load()
+        pkd = self.device.attach('pkd')
+        pkd_script = pkd.create_script(self.agent_source)
+        pkd_script.load()
+        pkd_script.exports.skip_pkd_validation_for(self.app.pid)
 
-        plugins = {}
-        scripts = {}
+        Plugin = namedtuple('Plugin', ['id', 'session', 'pid', 'script'])
+        spawned = set()
+        all_groups = []
         for identifier in self.plugins:
-            # TodayWidget can only be launched by SpringBoard
-            pid = spring_script.exports.start(identifier)
-            # print('plugin %s, pid=%d' % (identifier, pid))
+            pid = self.script.exports.launch(identifier)
+            print('plugin %s, pid=%d' % (identifier, pid))
             session = self.device.attach(pid)
-            plugins[identifier] = session
-
             script = session.create_script(self.agent_source)
             script.load()
-            scripts[identifier] = script
 
-        all_groups = [set(script.exports.groups())
-                      for session in plugins.values()]
+            plugin = Plugin(id=identifier, session=session, pid=pid, script=script)
+            spawned.add(plugin)
+            all_groups.append(set(script.exports.groups()))
+
+        pkd.detach()
         group = set.intersection(*all_groups).pop()
         if not group:
             raise RuntimeError('''App includes extension, but no valid '''
                                '''app group found. Please file a bug to Github''')
 
-        # todo: dump
         print('group:', group)
-        for script in scripts.values():
-            # todo: dump
-            pass
+        container = self.script.exports.path_for_group(group)
+        print('container:', container)
+        # todo: dump
 
-        for session in plugins.values():
-            session.detach()
-        springboard.detach()
+        # clean up
+        for plugin in spawned:
+            plugin.session.detach()
+            self.device.kill(plugin.pid)
+
 
     def load_agent(self):
         agent = os.path.join('agent', 'dist.js')

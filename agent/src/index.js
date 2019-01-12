@@ -1,4 +1,7 @@
+import fs from 'frida-fs'
 import macho from 'macho'
+
+import archive from './libarchive'
 
 import { open, close, write, lseek, unlink, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
 import ReadOnlyMemoryBuffer from './romembuf'
@@ -140,7 +143,13 @@ function normalize(path) {
 }
 
 rpc.exports = {
-  plugins: function() {
+  pathForGroup(group) {
+    return ObjC.classes.NSFileManager.defaultManager()
+      .containerURLForSecurityApplicationGroupIdentifier_(group)
+      .path()
+      .toString();
+  },
+  plugins() {
     const {
       LSApplicationWorkspace,
       NSString,
@@ -178,7 +187,7 @@ rpc.exports = {
     }
     return result;
   },
-  start: function(id) {
+  launch(id) {
     const { NSExtension, NSString } = ObjC.classes;
     const pErr = Memory.alloc(Process.pointerSize);
     const identifier = NSString.stringWithString_(id);
@@ -205,7 +214,7 @@ rpc.exports = {
       }));
     });
   },
-  dump: function(opt) {
+  dump(opt) {
     const { NSBundle, NSFileManager, NSDirectoryEnumerator } = ObjC.classes
     const bundle = NSBundle.mainBundle().bundlePath()
     const appName = bundle.lastPathComponent()
@@ -265,5 +274,15 @@ rpc.exports = {
       }
       run()
     })
+  },
+  skipPkdValidationFor(pid) {
+    if ('PKDPlugIn' in ObjC.classes) {
+      const method = ObjC.classes.PKDPlugIn['- allowForClient:']
+      const original = method.implementation
+      method.implementation = ObjC.implement(method, function(self, sel, conn) {
+        // race condition huh? we don't care
+        return pid === new ObjC.Object(conn).pid() ? NULL : original.call(this, arguments)
+      })
+    }
   }
 }
