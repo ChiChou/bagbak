@@ -1,7 +1,10 @@
 # frida-ipa
+
 Yet another frida based iOS dumpdecrypted
 
-**Only python3 is supported**
+Tested on macOS and Windows, supports both Python2 and Python3.
+
+Recommended frida version: > 12.0
 
 ## Configuration
 

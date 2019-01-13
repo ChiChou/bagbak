@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from __future__ import print_function
+
 import codecs
 import sys
 import tempfile
@@ -201,7 +203,7 @@ class IPADump(object):
             decrypted += plugin.script.exports.decrypt(root, container)
             plugin.session.detach()
             self.device.kill(plugin.pid)
-        
+
         self.script.exports.archive(root, container, decrypted, self.opt)
 
     def load_agent(self):
@@ -218,17 +220,13 @@ class IPADump(object):
                                     (self.app.name, 'ipa'))
         else:
             ipa_name = self.output
-        
+
         self.ipa_name = ipa_name
         self.dump()
         print('Output: %s' % ipa_name)
 
 
 def main():
-    import sys
-    if sys.version_info.major < 3:
-        fatal('this tool requires python 3 or higher, detected:\n%s' % sys.version)
-
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', nargs='?', help='device id (prefix)')
