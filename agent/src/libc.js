@@ -7,7 +7,7 @@ export const read = wrap('read', 'int', ['int', 'pointer', 'int'])
 export const write = wrap('write', 'int', ['int', 'pointer', 'int'])
 export const lseek = wrap('lseek', 'int64', ['int', 'int64', 'int'])
 export const unlink = wrap('unlink', 'int', ['pointer'])
-
+export const getenv = wrap('getenv', 'pointer', ['pointer'])
 
 export const O_RDONLY = 0
 export const O_RDWR = 2

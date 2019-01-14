@@ -51,20 +51,22 @@ def find_app(app_name_or_id, device_id, device_ip):
 
 class Task(object):
 
-    def __init__(self, session, path, size):
+    def __init__(self, session, path, size, script):
         self.session = session
         self.path = path
         self.size = size
-        self.file = open(self.path, 'wb')
+        self.fp = open(self.path, 'wb')
+        self.script = script
 
     def write(self, data):
-        self.file.write(data)
+        self.fp.write(data)
+        self.script.post({'type': 'flush', 'payload': {}})
 
     def finish(self):
         self.close()
 
     def close(self):
-        self.file.close()
+        self.fp.close()
 
 
 class IPADump(object):
@@ -83,7 +85,7 @@ class IPADump(object):
         self.ipa_name = ''
 
     def on_download_start(self, session, size, **kwargs):
-        self.tasks[session] = Task(session, self.ipa_name, size)
+        self.tasks[session] = Task(session, self.ipa_name, size, self.script)
 
     def on_download_data(self, session, data, **kwargs):
         self.tasks[session].write(data)
@@ -150,10 +152,14 @@ class IPADump(object):
 
         self.plugins = script.exports.plugins()
         self.script = script
+        self.root = self.script.exports.root()
+
         if len(self.plugins):
             self.dump_with_plugins()
         else:
-            script.exports.dump(self.opt)
+            container = script.exports.tmpdir()
+            decrypted = script.exports.decrypt(self.root, container, self.opt)
+            self.script.exports.archive(self.root, container, decrypted, self.opt)
 
         session.detach()
 
@@ -189,8 +195,7 @@ class IPADump(object):
         if not group:
             raise RuntimeError('''App includes extension, but no valid '''
                                '''app group found. Please file a bug to Github''')
-
-        root = self.script.exports.root()
+        root = self.root
         container = self.script.exports.path_for_group(group)
         if self.verbose:
             print('group:', group)

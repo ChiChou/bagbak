@@ -47,6 +47,8 @@ See Edge.ipa
 
 ## FAQ
 
+Use `--verbose` to see full logs.
+
 WatchOS related files may cause reinstallation failure, so we'll skip such files by default.
 
 To preserve WatchOS binaries, use `--keep-watch` switch.

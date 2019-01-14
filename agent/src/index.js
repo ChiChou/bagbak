@@ -3,7 +3,7 @@ import macho from 'macho'
 
 import libarchive from './libarchive'
 
-import { open, close, write, lseek, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
+import { open, close, write, lseek, getenv, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
 import ReadOnlyMemoryBuffer from './romembuf'
 
 
@@ -67,7 +67,7 @@ function dump(module, dest) {
 
 async function transfer(filename) {
   const session = Math.random().toString(36).substr(2)
-  const watermark = 10 * 1024 * 1024
+  const watermark = 4 * 1024 * 1024
   const subject = 'download'
   const { size } = fs.statSync(filename)
   const fd = open(Memory.allocUtf8String(filename), O_RDONLY, 0)
@@ -93,6 +93,8 @@ async function transfer(filename) {
       event: 'data',
       session,
     }, bytes)
+
+    recv('flush', (value) => {}).wait()
   }
 
   send({
@@ -201,6 +203,9 @@ rpc.exports = {
         }
       }));
     });
+  },
+  tmpdir() {
+    return Memory.readUtf8String(getenv(Memory.allocUtf8String('TMPDIR')))
   },
   decrypt(root, dest) {
     const modules = Process.enumerateModulesSync()
