@@ -1,3 +1,6 @@
+# iOS apps
+*.ipa
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
