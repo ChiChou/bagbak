@@ -153,7 +153,7 @@ class IPADump(object):
         if len(self.plugins):
             self.dump_with_plugins()
         else:
-            script.export.dump(self.opt)
+            script.exports.dump(self.opt)
 
         session.detach()
 
