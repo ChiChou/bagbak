@@ -1,9 +1,10 @@
 import fs from 'frida-fs'
 import macho from 'macho'
 
-import libarchive from './libarchive'
-
 import { open, close, write, lseek, getenv, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
+
+import * as path from './path'
+import libarchive from './libarchive'
 import ReadOnlyMemoryBuffer from './romembuf'
 
 
@@ -26,8 +27,7 @@ function dump(module, dest) {
   close(fd)
 
   console.log('decrypting module', module.name)
-
-  const tmp = [dest, '/', name, '.decrypted'].join('')
+  const tmp = path.join(dest, `${name}.decrypted`)
 
   // copy encrypted
   const err = Memory.alloc(Process.pointerSize)
@@ -75,14 +75,18 @@ async function transfer(filename) {
   if (fd === -1)
     throw new Error('fatal error: unable to download archive')
 
+  console.log('start transfering')
   const stream = new UnixInputStream(fd, { autoClose: true })
   let eof = false
+  let sent = 0
   send({
     subject,
     event: 'start',
     session,
     size,
   })
+
+  const format = size => `${(size / 1024 / 1024).toFixed(2)}MiB`
 
   while (!eof) {
     const bytes = await stream.read(watermark)
@@ -95,6 +99,8 @@ async function transfer(filename) {
     }, bytes)
 
     recv('flush', (value) => {}).wait()
+    sent += bytes.byteLength
+    console.log(`downloaded ${format(sent)} of ${format(size)}, ${(sent * 100 / size).toFixed(2)}%`)
   }
 
   send({
@@ -103,6 +109,7 @@ async function transfer(filename) {
     session,
   })
 
+  console.log('transfer complete')
   fs.unlinkSync(filename)
 
   try {
@@ -112,21 +119,6 @@ async function transfer(filename) {
   } catch (e) {
 
   }
-}
-
-function relativeTo(base, full) {
-  const a = normalize(base).split('/')
-  const b = normalize(full).split('/')
-
-  let i = 0;
-  while (a[i] === b[i])
-    i++
-  return b.slice(i).join('/')
-}
-
-function normalize(path) {
-  return ObjC.classes.NSString.stringWithString_(path)
-    .stringByStandardizingPath().toString()
 }
 
 rpc.exports = {
@@ -209,17 +201,19 @@ rpc.exports = {
   },
   decrypt(root, dest) {
     const modules = Process.enumerateModulesSync()
-      .map(mod => Object.assign({}, mod, { path: normalize(mod.path) }))
-      .filter(mod => mod.path.startsWith(normalize(root)))
+      .map(mod => Object.assign({}, mod, { path: path.normalize(mod.path) }))
+      .filter(mod => mod.path.startsWith(path.normalize(root)))
       .map(mod => ({
-        relative: relativeTo(root, mod.path),
+        relative: path.relativeTo(root, mod.path),
         absolute: mod.path,
         decrypted: dump(mod, dest)
       }))
     return modules.filter(mod => mod.decrypted)
   },
   async archive(root, dest, decrypted, opt) {
-    const pkg = `${dest}/archive.ipa`
+    const pkg = path.join(dest, 'archive.ipa')
+    console.log('compressing archive:', pkg)
+
     const ar = libarchive.writeNew()
     libarchive.writeSetFormatZip(ar)
     libarchive.writeOpenFilename(ar, Memory.allocUtf8String(pkg))
@@ -230,6 +224,7 @@ rpc.exports = {
 
     const bufferSize = 16 * 1024 * 1024
     const buf = Memory.alloc(bufferSize)
+    const prefix = path.join('Payload', path.basename(root))
 
     const timestamp = date => Math.floor(date.getTime() / 1000)
     const lookup = {}
@@ -238,18 +233,21 @@ rpc.exports = {
 
     let nextObj = null
     while (nextObj = enumerator.nextObject()) {
-      const path = nextObj.toString()
-      const absolute = [root, path].join('/')
+      const relative = nextObj.toString()
+      if (/^\/_CodeSignature\//.test(relative))
+        continue
+
+      const absolute = path.join(root, relative)
       const st = fs.statSync(absolute)
       if (st.mode & fs.constants.S_IFDIR) {
         // doesn't need to handle?
         continue
       } else if (!(st.mode & fs.constants.S_IFREG)) {
-        console.warn('unknown file mode', absolute)
+        console.error('unknown file mode', absolute)
       }
 
       const entry = libarchive.entryNew()
-      libarchive.entrySetPathname(entry, Memory.allocUtf8String(path))
+      libarchive.entrySetPathname(entry, Memory.allocUtf8String(path.join(prefix, relative)))
       libarchive.entrySetSize(entry, st.size)
       libarchive.entrySetFiletype(entry, fs.constants.S_IFREG)
       libarchive.entrySetPerm(entry, st.mode & 0o777)
@@ -258,10 +256,10 @@ rpc.exports = {
       libarchive.writeHeader(ar, entry)
 
       // const stream = fs.createReadStream(absolute)
-      const filename = path in lookup ? lookup[path].decrypted : absolute
+      const filename = relative in lookup ? lookup[relative].decrypted : absolute
       const fd = open(Memory.allocUtf8String(filename), O_RDONLY, 0)
       if (fd === -1) {
-        if (/\/CodeResources\//.test(path) || /(\/Plugins\/(.*)\.appex\/)?SC_Info\//.test(path))
+        if (/(\/Plugins\/(.*)\.appex\/)?SC_Info\//.test(relative))
           continue
 
         console.warn('unable to open', absolute)
@@ -279,16 +277,17 @@ rpc.exports = {
       }
 
       // delete decrypted file
-      if (path in lookup)
+      if (relative in lookup)
         fs.unlinkSync(filename)
 
-      console.log('compress:', path)
+      if (opt.verbose)
+        console.log('compress:', relative)
       libarchive.writeFinishEntry(ar)
       libarchive.entryFree(entry)
     }
 
     libarchive.writeFinish(ar)
-    console.log('archive:', pkg)
+    console.log('done', pkg)
     return transfer(pkg)
   },
   skipPkdValidationFor(pid) {

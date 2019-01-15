@@ -81,6 +81,7 @@ class IPADump(object):
         self.verbose = verbose
         self.opt = {
             'keepWatch': keep_watch,
+            'verbose': verbose,
         }
         self.ipa_name = ''
 
@@ -126,8 +127,6 @@ class IPADump(object):
 
     def dump(self):
         def on_console(level, text):
-            if not self.verbose and level == 'info':
-                return
             print('[%s]' % level, text)
 
         on_console('info', 'attaching to target')
