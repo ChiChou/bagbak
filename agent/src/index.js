@@ -121,6 +121,12 @@ async function transfer(filename) {
   }
 }
 
+function tmpdir() {
+  const f = new NativeFunction(Module.findExportByName(null, 'NSTemporaryDirectory'), 'pointer', [])
+  return new ObjC.Object(f()) + ''
+}
+
+
 rpc.exports = {
   pathForGroup(group) {
     return ObjC.classes.NSFileManager.defaultManager()
@@ -160,9 +166,14 @@ rpc.exports = {
     const copyTaskEnt = new NativeFunction(
       Module.findExportByName('Security', 'SecTaskCopyValueForEntitlement'),
       'pointer', ['pointer', 'pointer', 'pointer']);
-    const key = ObjC.classes.NSString.stringWithString_('com.apple.security.application-groups')
-    // todo: copy to array
-    const value = new ObjC.Object(copyTaskEnt(task, key, NULL));
+    const key = ObjC.classes.NSString.stringWithString_('com.apple.security.application-groups');
+    const groups = copyTaskEnt(task, key, NULL);
+    if (groups.isNull()) {
+      const exec = ObjC.classes.NSBundle.mainBundle().executablePath().toString()
+      console.warn(`${exec} has no application group`)
+      return [];
+    }
+    const value = new ObjC.Object(groups);
     const result = [];
     for (let i = 0; i < value.count(); i++) {
       result.push(value.objectAtIndex_(i) + '');
@@ -184,6 +195,22 @@ rpc.exports = {
       return Promise.reject('unable to create extension ' + id);
     }
 
+    extension.setRequestCancellationBlock_(new ObjC.Block({
+      retType: 'void',
+      argTypes: ['object', 'object'],
+      implementation(uuid, error) {
+        console.log('cancel', uuid, error)
+      }
+    }))
+
+    extension.setRequestInterruptionBlock_(new ObjC.Block({
+      retType: 'void',
+      argTypes: ['object'],
+      implementation(uuid) {
+        console.log('interrupt', uuid)
+      }
+    }))
+
     // https://ianmcdowell.net/blog/nsextension/
     return new Promise((resolve, reject) => {
       extension.beginExtensionRequestWithInputItems_completion_(NULL, new ObjC.Block({
@@ -193,8 +220,8 @@ rpc.exports = {
           const pid = extension.pidForRequestIdentifier_(requestIdentifier);
           resolve(pid);
         }
-      }));
-    });
+      }))
+    })
   },
   tmpdir() {
     return Memory.readUtf8String(getenv(Memory.allocUtf8String('TMPDIR')))
