@@ -234,7 +234,10 @@ rpc.exports = {
     let nextObj = null
     while (nextObj = enumerator.nextObject()) {
       const relative = nextObj.toString()
-      if (/^\/_CodeSignature\//.test(relative))
+      if (/(\_CodeSignature\/CodeResources|SC_Info\/\w+\.s(inf|upf|upp|upx))$/.test(relative))
+        continue
+
+      if (!opt.keepWatch && /^Watch\//.test(relative))
         continue
 
       const absolute = path.join(root, relative)
