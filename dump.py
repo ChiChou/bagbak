@@ -101,6 +101,10 @@ class IPADump(object):
         self.tasks[session].finish()
         del self.tasks[session]
 
+    def on_detach(self, msg):
+        print('[fatal] session detached')
+        sys.exit(-1)
+
     def on_message(self, msg, data):
         if msg.get('type') != 'send':
             print('unknown message:', msg)
@@ -144,6 +148,7 @@ class IPADump(object):
         else:
             session = self.device.attach(pid)
 
+        session.on('detached', self.on_detach)
         script = session.create_script(self.agent_source)
         script.set_log_handler(on_console)
         script.on('message', self.on_message)
@@ -190,10 +195,13 @@ class IPADump(object):
             all_groups.append(set(script.exports.groups()))
 
         pkd.detach()
-        group = set.intersection(*all_groups).pop()
-        if not group:
+        intersect_groups = set.intersection(*all_groups)
+        if not len(intersect_groups):
             raise RuntimeError('''App includes extension, but no valid '''
                                '''app group found. Please file a bug to Github''')
+        else:
+            group = intersect_groups.pop()
+
         root = self.root
         container = self.script.exports.path_for_group(group)
         if self.verbose:
