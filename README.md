@@ -1,4 +1,4 @@
-# frida-ipa
+# frida-ipa-dump
 
 Yet another frida based iOS dumpdecrypted
 
@@ -13,36 +13,16 @@ No SSH required. Just `pip install frida`
 ## Example
 
 ```
-➜  frida-ipa-dump git:(master) ./dump.py Edge -o ~/Downloads
+➜  frida-ipa-dump git:(master) ./dump.py hackertracker
 [info] attaching to target
-[info] decrypting module RubyBrowser
-[info] decrypting module ConnectedDevices
-[info] decrypting module Papyrus
-[info] decrypting module PapyrusCore
-[info] decrypting module PapyrusCoreCpp
-[info] decrypting module RubySync
-[warning] Module libswiftAVFoundation.dylib is not encrypted
-[warning] Module libswiftContacts.dylib is not encrypted
-[warning] Module libswiftCore.dylib is not encrypted
-[warning] Module libswiftCoreAudio.dylib is not encrypted
-[warning] Module libswiftCoreData.dylib is not encrypted
-[warning] Module libswiftCoreFoundation.dylib is not encrypted
-[warning] Module libswiftCoreGraphics.dylib is not encrypted
-[warning] Module libswiftCoreImage.dylib is not encrypted
-[warning] Module libswiftCoreLocation.dylib is not encrypted
-[warning] Module libswiftCoreMedia.dylib is not encrypted
-[warning] Module libswiftDarwin.dylib is not encrypted
-[warning] Module libswiftDispatch.dylib is not encrypted
-[warning] Module libswiftFoundation.dylib is not encrypted
-[warning] Module libswiftMetal.dylib is not encrypted
-[warning] Module libswiftObjectiveC.dylib is not encrypted
-[warning] Module libswiftPhotos.dylib is not encrypted
-[warning] Module libswiftQuartzCore.dylib is not encrypted
-[warning] Module libswiftUIKit.dylib is not encrypted
-[warning] Module libswiftsimd.dylib is not encrypted
-[warning] Module libswiftos.dylib is not encrypted
-[warning] unable to open file /var/containers/Bundle/Application/7506B185-DBEF-4004-BCDD-C645C3702286/RubyBrowser.app/SC_Info/Manifest.plist, skip
-See Edge.ipa
+[info] decrypting module hackertracker
+[info] compressing archive: /private/var/mobile/Containers/Data/Application/0F2B22A7-E2E3-4AAB-A183-F65520E8471F/tmp/ensa8nhyzt6.ipa
+[info] done /private/var/mobile/Containers/Data/Application/0F2B22A7-E2E3-4AAB-A183-F65520E8471F/tmp/ensa8nhyzt6.ipa
+[info] start transfering
+[info] downloaded 4.00MiB of 7.79MiB, 51.33%
+[info] downloaded 7.79MiB of 7.79MiB, 100.00%
+[info] transfer complete
+Output: hackertracker.ipa
 ```
 
 ## FAQ
