@@ -95,7 +95,7 @@ async function transfer(filename) {
           session,
         }, chunk)
 
-        recv('flush', (value) => { }).wait()
+        recv('flush', () => { }).wait()
         sent += chunk.byteLength
         console.log(`downloaded ${format(sent)} of ${format(size)}, ${(sent * 100 / size).toFixed(2)}%`)
       })
@@ -135,22 +135,25 @@ rpc.exports = {
       NSMutableArray,
       NSPredicate,
       NSBundle
-    } = ObjC.classes;
+    } = ObjC.classes
 
-    const args = NSMutableArray.alloc().init();
-    args.setObject_atIndex_(NSBundle.mainBundle().bundleIdentifier(), 0);
-    const fmt = NSString.stringWithString_('containingBundle.applicationIdentifier=%@');
-    const predicate = NSPredicate.predicateWithFormat_argumentArray_(fmt, args);
+    const args = NSMutableArray.alloc().init()
+    args.setObject_atIndex_(NSBundle.mainBundle().bundleIdentifier(), 0)
+    const fmt = NSString.stringWithString_('containingBundle.applicationIdentifier=%@')
+    const predicate = NSPredicate.predicateWithFormat_argumentArray_(fmt, args)
     const plugins = LSApplicationWorkspace.defaultWorkspace()
-      .installedPlugins().filteredArrayUsingPredicate_(predicate);
+      .installedPlugins().filteredArrayUsingPredicate_(predicate)
     const result = [];
     for (let i = 0; i < plugins.count(); i++) {
-      result.push(plugins.objectAtIndex_(i).pluginIdentifier() + '');
+      result.push(plugins.objectAtIndex_(i).pluginIdentifier() + '')
     }
     return result;
   },
+  root() {
+    return ObjC.classes.NSBundle.mainBundle().bundlePath().toString()
+  },
   startPkd() {
-    ObjC.classes.NSExtension.extensionWithIdentifier_error_('com.apple.nonexist', NULL);
+    ObjC.classes.NSExtension.extensionWithIdentifier_error_('com.apple.nonexist', NULL)
   },
   launch(id) {
     const { NSExtension, NSString } = ObjC.classes
