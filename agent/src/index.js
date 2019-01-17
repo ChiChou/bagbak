@@ -1,20 +1,23 @@
 import fs from 'frida-fs'
 import macho from 'macho'
 
-import { open, close, write, lseek, getenv, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
+Module.ensureInitialized('Foundation')
+
+import { open, close, write, lseek, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
 
 import * as path from './path'
 import libarchive from './libarchive'
 import ReadOnlyMemoryBuffer from './romembuf'
 
 
-function dump(module, dest) {
+function dump(module) {
   const { name } = module
   const buffer = new ReadOnlyMemoryBuffer(module.base, module.size)
   const info = macho.parse(buffer)
   const matches = info.cmds.filter(cmd => /^encryption_info(_64)?$/.test(cmd.type) && cmd.id === 1)
   if (!matches.length) {
-    console.warn(`Module ${name} is not encrypted`)
+    if (!name.match(/^libswift\w+\.dylib$/))
+      console.warn(`Module ${name} is not encrypted`)
     return null
   }
 
@@ -27,7 +30,7 @@ function dump(module, dest) {
   close(fd)
 
   console.log('decrypting module', module.name)
-  const tmp = path.join(dest, `${name}.decrypted`)
+  const tmp = path.join(tmpdir(), `${name}.decrypted`)
 
   // copy encrypted
   const err = Memory.alloc(Process.pointerSize)
@@ -67,18 +70,12 @@ function dump(module, dest) {
 
 async function transfer(filename) {
   const session = Math.random().toString(36).substr(2)
-  const watermark = 4 * 1024 * 1024
+  const highWaterMark = 4 * 1024 * 1024
   const subject = 'download'
   const { size } = fs.statSync(filename)
-  const fd = open(Memory.allocUtf8String(filename), O_RDONLY, 0)
-
-  if (fd === -1)
-    throw new Error('fatal error: unable to download archive')
+  const stream = fs.createReadStream(filename, { highWaterMark })
 
   console.log('start transfering')
-  const stream = new UnixInputStream(fd, { autoClose: true })
-  let eof = false
-  let sent = 0
   send({
     subject,
     event: 'start',
@@ -88,20 +85,22 @@ async function transfer(filename) {
 
   const format = size => `${(size / 1024 / 1024).toFixed(2)}MiB`
 
-  while (!eof) {
-    const bytes = await stream.read(watermark)
-    eof = bytes.byteLength < watermark
+  let sent = 0
+  await new Promise((resolve, reject) =>
+    stream
+      .on('data', chunk => {
+        send({
+          subject,
+          event: 'data',
+          session,
+        }, chunk)
 
-    send({
-      subject,
-      event: 'data',
-      session,
-    }, bytes)
-
-    recv('flush', (value) => {}).wait()
-    sent += bytes.byteLength
-    console.log(`downloaded ${format(sent)} of ${format(size)}, ${(sent * 100 / size).toFixed(2)}%`)
-  }
+        recv('flush', (value) => { }).wait()
+        sent += chunk.byteLength
+        console.log(`downloaded ${format(sent)} of ${format(size)}, ${(sent * 100 / size).toFixed(2)}%`)
+      })
+      .on('end', resolve)
+      .on('error', reject))
 
   send({
     subject,
@@ -121,10 +120,11 @@ async function transfer(filename) {
   }
 }
 
-function tmpdir() {
+const tmpdir = (function () {
   const f = new NativeFunction(Module.findExportByName(null, 'NSTemporaryDirectory'), 'pointer', [])
-  return new ObjC.Object(f()) + ''
-}
+  const cache = new ObjC.Object(f()) + ''
+  return () => cache
+})()
 
 
 rpc.exports = {
@@ -194,14 +194,14 @@ rpc.exports = {
     if (pid)
       return Promise.resolve(pid)
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         const pid = extension['- _plugInProcessIdentifier']()
         if (pid)
           resolve(pid)
         else
           reject('unable to get extension pid')
-      }, 200)
+      }, 400)
 
       extension.beginExtensionRequestWithInputItems_completion_(NULL, new ObjC.Block({
         retType: 'void',
@@ -214,22 +214,19 @@ rpc.exports = {
       }))
     })
   },
-  tmpdir() {
-    return tmpdir()
-  },
-  decrypt(root, dest) {
+  decrypt(root) {
     const modules = Process.enumerateModulesSync()
       .map(mod => Object.assign({}, mod, { path: path.normalize(mod.path) }))
       .filter(mod => mod.path.startsWith(path.normalize(root)))
       .map(mod => ({
         relative: path.relativeTo(root, mod.path),
         absolute: mod.path,
-        decrypted: dump(mod, dest)
+        decrypted: dump(mod)
       }))
     return modules.filter(mod => mod.decrypted)
   },
   async archive(root, decrypted, opt) {
-    const pkg = path.join(tmpdir(), 'archive.ipa')
+    const pkg = path.join(tmpdir(), `${Math.random().toString(36).slice(2)}.ipa`)
     console.log('compressing archive:', pkg)
 
     const ar = libarchive.writeNew()
@@ -240,8 +237,8 @@ rpc.exports = {
     const fileMgr = NSFileManager.defaultManager()
     const enumerator = fileMgr.enumeratorAtPath_(root)
 
-    const bufferSize = 16 * 1024 * 1024
-    const buf = Memory.alloc(bufferSize)
+    const highWaterMark = 16 * 1024 * 1024
+    const buf = Memory.alloc(highWaterMark)
     const prefix = path.join('Payload', path.basename(root))
 
     const timestamp = date => Math.floor(date.getTime() / 1000)
@@ -267,6 +264,9 @@ rpc.exports = {
         console.error('unknown file mode', absolute)
       }
 
+      if (opt.verbose)
+        console.log('compress:', relative)
+
       const entry = libarchive.entryNew()
       libarchive.entrySetPathname(entry, Memory.allocUtf8String(path.join(prefix, relative)))
       libarchive.entrySetSize(entry, st.size)
@@ -276,33 +276,29 @@ rpc.exports = {
       libarchive.entrySetMtime(entry, timestamp(st.mtime), 0)
       libarchive.writeHeader(ar, entry)
 
-      // const stream = fs.createReadStream(absolute)
       const filename = relative in lookup ? lookup[relative].decrypted : absolute
-      const fd = open(Memory.allocUtf8String(filename), O_RDONLY, 0)
-      if (fd === -1) {
-        if (/(\/Plugins\/(.*)\.appex\/)?SC_Info\//.test(relative))
-          continue
-
-        console.warn('unable to open', absolute)
+      let stream
+      try {
+        stream = fs.createReadStream(filename, { highWaterMark })
+      } catch (e) {
+        if (!/(\/Plugins\/(.*)\.appex\/)?SC_Info\//.test(relative))
+          console.warn(`unable to open ${filename} (${e.message})`)
         continue
       }
 
-      const stream = new UnixInputStream(fd, { autoClose: true });
-      let eof = false
-      while (!eof) {
-        const bytes = await stream.read(bufferSize)
-        eof = bytes.byteLength < bufferSize
-        // damn memcpy
-        Memory.writeByteArray(buf, bytes)
-        libarchive.writeData(ar, buf, bytes.byteLength)
-      }
+      await new Promise((resolve, reject) =>
+        stream
+          .on('data', chunk => {
+            Memory.writeByteArray(buf, chunk)
+            libarchive.writeData(ar, buf, chunk.byteLength)
+          })
+          .on('end', resolve)
+          .on('error', reject))
 
       // delete decrypted file
       if (relative in lookup)
         fs.unlinkSync(filename)
 
-      if (opt.verbose)
-        console.log('compress:', relative)
       libarchive.writeFinishEntry(ar)
       libarchive.entryFree(entry)
     }

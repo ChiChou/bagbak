@@ -49,62 +49,16 @@ def find_app(app_name_or_id, device_id, device_ip):
     return dev, app
 
 
-class Task(object):
-
-    def __init__(self, session, path, size, script):
-        self.session = session
-        self.path = path
-        self.size = size
-        self.fp = open(self.path, 'wb')
+class FileReceiver(object):
+    def __init__(self, script, filename):
         self.script = script
-
-    def write(self, data):
-        self.fp.write(data)
-        self.script.post({'type': 'flush', 'payload': {}})
-
-    def finish(self):
-        self.close()
-
-    def close(self):
-        self.fp.close()
-
-
-class IPADump(object):
-
-    def __init__(self, device, app, output=None, verbose=False, keep_watch=False):
-        self.device = device
-        self.app = app
         self.session = None
-        self.cwd = None
-        self.tasks = {}
-        self.output = output
-        self.verbose = verbose
-        self.opt = {
-            'keepWatch': keep_watch,
-            'verbose': verbose,
-        }
-        self.ipa_name = ''
+        self.filename = filename
+        self.fp = None
+        self.size = 0
 
-    def on_download_start(self, session, size, **kwargs):
-        self.tasks[session] = Task(session, self.ipa_name, size, self.script)
-
-    def on_download_data(self, session, data, **kwargs):
-        self.tasks[session].write(data)
-
-    def on_download_finish(self, session, **kwargs):
-        self.close_session(session)
-
-    def on_download_error(self, session, **kwargs):
-        self.close_session(session)
-
-    def close_session(self, session):
-        self.tasks[session].finish()
-        del self.tasks[session]
-
-    def on_detach(self, reason):
-        if reason != 'application-requested':
-            print('[fatal] session detached, reason:', reason)
-            sys.exit(-1)
+    def connect(self):
+        self.script.on('message', self.on_message)
 
     def on_message(self, msg, data):
         if msg.get('type') != 'send':
@@ -131,10 +85,51 @@ class IPADump(object):
             print('unknown message')
             print(msg)
 
-    def dump(self):
-        def on_console(level, text):
-            print('[%s]' % level, text)
+    def on_download_start(self, session, size, **kwargs):
+        self.session = session
+        self.size = size
+        self.fp = open(self.filename, 'wb')
 
+    def on_download_data(self, session, data, **kwargs):
+        assert(self.session == session)
+        self.fp.write(data)
+        self.script.post({'type': 'flush', 'payload': {}})
+
+    def on_download_finish(self, session, **kwargs):
+        self.close_session(session)
+
+    def on_download_error(self, session, **kwargs):
+        self.close_session(session)
+
+    def close_session(self, session):
+        self.fp.close()
+        self.session = None
+
+def on_console(level, text):
+    print('[%s] %s' % (level, text))
+
+class IPADump(object):
+
+    def __init__(self, device, app, output=None, verbose=False, keep_watch=False):
+        self.device = device
+        self.app = app
+        self.session = None
+        self.cwd = None
+        self.tasks = {}
+        self.output = output
+        self.verbose = verbose
+        self.opt = {
+            'keepWatch': keep_watch,
+            'verbose': verbose,
+        }
+        self.ipa_name = ''
+
+    def on_detach(self, reason):
+        if reason != 'application-requested':
+            print('[fatal] session detached, reason:', reason)
+            sys.exit(-1)
+
+    def dump(self):
         on_console('info', 'attaching to target')
         pid = self.app.pid
         spawn = not bool(pid)
@@ -153,7 +148,7 @@ class IPADump(object):
         session.on('detached', self.on_detach)
         script = session.create_script(self.agent_source)
         script.set_log_handler(on_console)
-        script.on('message', self.on_message)
+        FileReceiver(script, self.ipa_name).connect()
         script.load()
 
         self.plugins = script.exports.plugins()
@@ -163,57 +158,48 @@ class IPADump(object):
         if len(self.plugins):
             self.dump_with_plugins()
         else:
-            container = script.exports.tmpdir()
-            decrypted = script.exports.decrypt(self.root, container, self.opt)
+            decrypted = script.exports.decrypt(self.root)
             self.script.exports.archive(self.root, decrypted, self.opt)
 
         session.detach()
+        # todo: option
+        # self.device.kill(self.app.pid)
 
     def dump_with_plugins(self):
         # handle plugins
         self.script.exports.start_pkd()
         pkd = self.device.attach('pkd')
         pkd_script = pkd.create_script(self.agent_source)
+        pkd_script.set_log_handler(on_console)
         pkd_script.load()
         pkd_script.exports.skip_pkd_validation_for(self.app.pid)
 
-        Plugin = namedtuple('Plugin', ['id', 'session', 'pid', 'script'])
-        spawned = set()
-        all_groups = []
+        decrypted = self.script.exports.decrypt(self.root)
         for identifier in self.plugins:
             pid = self.script.exports.launch(identifier)
             print('plugin %s, pid=%d' % (identifier, pid))
             session = self.device.attach(pid)
             script = session.create_script(self.agent_source)
+            script.set_log_handler(on_console)
             script.load()
 
-            plugin = Plugin(id=identifier, session=session, pid=pid, script=script)
-            spawned.add(plugin)
-            all_groups.append(set(script.exports.groups()))
+            decrypted += script.exports.decrypt(self.root)
+            session.detach()
+            self.device.kill(pid)
 
         pkd.detach()
-        intersect_groups = set.intersection(*all_groups)
-        if not len(intersect_groups):
-            raise RuntimeError('''App includes extension, but no valid '''
-                               '''app group found. Please file a bug to Github''')
-        else:
-            group = intersect_groups.pop()
 
-        root = self.root
-        container = self.script.exports.path_for_group(group)
-        if self.verbose:
-            print('group:', group)
-            print('container:', container)
-            print('root:', root)
-        self.opt['dest'] = container
+        pid = self.device.spawn('/bin/ps')
+        sh = self.device.attach(pid)
+        script = sh.create_script(self.agent_source)
+        script.set_log_handler(on_console)
+        handler = FileReceiver(script, self.ipa_name)
+        handler.connect()
+        script.load()
+        script.exports.archive(self.root, decrypted, self.opt)
+        sh.detach()
+        self.device.kill(pid)
 
-        decrypted = self.script.exports.decrypt(root, container)
-        for plugin in spawned:
-            decrypted += plugin.script.exports.decrypt(root, container)
-            plugin.session.detach()
-            self.device.kill(plugin.pid)
-
-        self.script.exports.archive(root, decrypted, self.opt)
 
     def load_agent(self):
         agent = os.path.join('agent', 'dist.js')
