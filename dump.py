@@ -101,9 +101,10 @@ class IPADump(object):
         self.tasks[session].finish()
         del self.tasks[session]
 
-    def on_detach(self, msg):
-        print('[fatal] session detached')
-        sys.exit(-1)
+    def on_detach(self, reason):
+        if reason != 'application-requested':
+            print('[fatal] session detached, reason:', reason)
+            sys.exit(-1)
 
     def on_message(self, msg, data):
         if msg.get('type') != 'send':
@@ -124,6 +125,7 @@ class IPADump(object):
         elif subject == 'finish':
             print('bye')
             self.session.detach()
+            self.device.kill(self.app.pid)
             sys.exit(0)
         else:
             print('unknown message')
@@ -163,19 +165,14 @@ class IPADump(object):
         else:
             container = script.exports.tmpdir()
             decrypted = script.exports.decrypt(self.root, container, self.opt)
-            self.script.exports.archive(self.root, container, decrypted, self.opt)
+            self.script.exports.archive(self.root, decrypted, self.opt)
 
         session.detach()
 
     def dump_with_plugins(self):
         # handle plugins
-        try:
-            pkd = self.device.attach('pkd')
-        except frida.ProcessNotFoundError:
-            pid = self.device.spawn(['/bin/launchctl', 'start', 'com.apple.pluginkit.pkd'])
-            self.device.resume(pid)
-            # retry
-            pkd = self.device.attach('pkd')
+        self.script.exports.start_pkd()
+        pkd = self.device.attach('pkd')
         pkd_script = pkd.create_script(self.agent_source)
         pkd_script.load()
         pkd_script.exports.skip_pkd_validation_for(self.app.pid)
@@ -216,7 +213,7 @@ class IPADump(object):
             plugin.session.detach()
             self.device.kill(plugin.pid)
 
-        self.script.exports.archive(root, container, decrypted, self.opt)
+        self.script.exports.archive(root, decrypted, self.opt)
 
     def load_agent(self):
         agent = os.path.join('agent', 'dist.js')

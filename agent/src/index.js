@@ -180,51 +180,42 @@ rpc.exports = {
     }
     return result;
   },
+  startPkd() {
+    ObjC.classes.NSExtension.extensionWithIdentifier_error_('com.apple.nonexist', NULL);
+  },
   launch(id) {
-    const { NSExtension, NSString } = ObjC.classes;
-    const pErr = Memory.alloc(Process.pointerSize);
-    const identifier = NSString.stringWithString_(id);
-    const extension = NSExtension.extensionWithIdentifier_error_(identifier, pErr);
-    const err = Memory.readPointer(pErr);
-    if (!err.isNull()) {
-      console.log('err:', new ObjC.Object(err))
-      return Promise.reject(new ObjC.Object(err).toString())
-    }
+    const { NSExtension, NSString } = ObjC.classes
+    const identifier = NSString.stringWithString_(id)
+    const extension = NSExtension.extensionWithIdentifier_error_(identifier, NULL)
+    if (!extension)
+      throw new Error('unable to create extension ' + id)
 
-    if (!extension) {
-      return Promise.reject('unable to create extension ' + id);
-    }
+    const pid = extension['- _plugInProcessIdentifier']()
+    if (pid)
+      return Promise.resolve(pid)
 
-    extension.setRequestCancellationBlock_(new ObjC.Block({
-      retType: 'void',
-      argTypes: ['object', 'object'],
-      implementation(uuid, error) {
-        console.log('cancel', uuid, error)
-      }
-    }))
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        const pid = extension['- _plugInProcessIdentifier']()
+        if (pid)
+          resolve(pid)
+        else
+          reject('unable to get extension pid')
+      }, 200)
 
-    extension.setRequestInterruptionBlock_(new ObjC.Block({
-      retType: 'void',
-      argTypes: ['object'],
-      implementation(uuid) {
-        console.log('interrupt', uuid)
-      }
-    }))
-
-    // https://ianmcdowell.net/blog/nsextension/
-    return new Promise((resolve, reject) => {
       extension.beginExtensionRequestWithInputItems_completion_(NULL, new ObjC.Block({
         retType: 'void',
         argTypes: ['object'],
         implementation(requestIdentifier) {
-          const pid = extension.pidForRequestIdentifier_(requestIdentifier);
-          resolve(pid);
+          clearTimeout(timeout)
+          const pid = extension.pidForRequestIdentifier_(requestIdentifier)
+          resolve(pid)
         }
       }))
     })
   },
   tmpdir() {
-    return Memory.readUtf8String(getenv(Memory.allocUtf8String('TMPDIR')))
+    return tmpdir()
   },
   decrypt(root, dest) {
     const modules = Process.enumerateModulesSync()
@@ -237,8 +228,8 @@ rpc.exports = {
       }))
     return modules.filter(mod => mod.decrypted)
   },
-  async archive(root, dest, decrypted, opt) {
-    const pkg = path.join(dest, 'archive.ipa')
+  async archive(root, decrypted, opt) {
+    const pkg = path.join(tmpdir(), 'archive.ipa')
     console.log('compressing archive:', pkg)
 
     const ar = libarchive.writeNew()
