@@ -128,12 +128,6 @@ const tmpdir = (function () {
 
 
 rpc.exports = {
-  pathForGroup(group) {
-    return ObjC.classes.NSFileManager.defaultManager()
-      .containerURLForSecurityApplicationGroupIdentifier_(group)
-      .path()
-      .toString();
-  },
   plugins() {
     const {
       LSApplicationWorkspace,
@@ -152,31 +146,6 @@ rpc.exports = {
     const result = [];
     for (let i = 0; i < plugins.count(); i++) {
       result.push(plugins.objectAtIndex_(i).pluginIdentifier() + '');
-    }
-    return result;
-  },
-  root() {
-    return ObjC.classes.NSBundle.mainBundle().bundlePath().toString()
-  },
-  groups() {
-    const createFromSelf = new NativeFunction(
-      Module.findExportByName('Security', 'SecTaskCreateFromSelf'),
-      'pointer', ['pointer']);
-    const task = createFromSelf(NULL);
-    const copyTaskEnt = new NativeFunction(
-      Module.findExportByName('Security', 'SecTaskCopyValueForEntitlement'),
-      'pointer', ['pointer', 'pointer', 'pointer']);
-    const key = ObjC.classes.NSString.stringWithString_('com.apple.security.application-groups');
-    const groups = copyTaskEnt(task, key, NULL);
-    if (groups.isNull()) {
-      const exec = ObjC.classes.NSBundle.mainBundle().executablePath().toString()
-      console.warn(`${exec} has no application group`)
-      return [];
-    }
-    const value = new ObjC.Object(groups);
-    const result = [];
-    for (let i = 0; i < value.count(); i++) {
-      result.push(value.objectAtIndex_(i) + '');
     }
     return result;
   },
