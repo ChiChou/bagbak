@@ -1,12 +1,11 @@
 import fs from 'frida-fs'
 import macho from 'macho'
 
-Module.ensureInitialized('Foundation')
-
+import './ready'
 import { open, close, write, lseek, O_RDONLY, O_RDWR, SEEK_SET } from './libc'
-
-import * as path from './path'
 import libarchive from './libarchive'
+import * as path from './path'
+
 import ReadOnlyMemoryBuffer from './romembuf'
 
 
@@ -143,11 +142,12 @@ rpc.exports = {
     const predicate = NSPredicate.predicateWithFormat_argumentArray_(fmt, args)
     const plugins = LSApplicationWorkspace.defaultWorkspace()
       .installedPlugins().filteredArrayUsingPredicate_(predicate)
-    const result = [];
+    const result = []
     for (let i = 0; i < plugins.count(); i++) {
       result.push(plugins.objectAtIndex_(i).pluginIdentifier() + '')
     }
-    return result;
+    args.release()
+    return result
   },
   root() {
     return ObjC.classes.NSBundle.mainBundle().bundlePath().toString()
