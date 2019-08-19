@@ -2,17 +2,13 @@
 
 Yet another frida based iOS dumpdecrypted
 
-Tested on macOS and Windows, supports both Python2 and Python3.
+Tested on macOS, supports both Python2 and Python3.
 
-Recommended frida version: > 12.0
-
-**iOS 12 jailbreak is not supported yet**
-
-**For iOS 11 jailbreaks, only Electra is supported**
+Recommended frida version: > 12.6
 
 ## Configuration
 
-No SSH required. Just `pip install frida`
+**No SSH required**. Just `pip install frida`
 
 ## Example
 
