@@ -8,6 +8,7 @@ import sys
 import tempfile
 import os
 import shutil
+import time
 from collections import namedtuple
 
 import frida
@@ -140,12 +141,14 @@ class IPADump(object):
 
         if spawn:
             pid = self.device.spawn(self.app.identifier)
+            time.sleep(1)
             session = self.device.attach(pid)
             self.device.resume(pid)
         else:
             session = self.device.attach(pid)
 
         session.on('detached', self.on_detach)
+        session.enable_jit()
         script = session.create_script(self.agent_source)
         script.set_log_handler(on_console)
         FileReceiver(script, self.ipa_name).connect()
@@ -163,7 +166,7 @@ class IPADump(object):
 
         session.detach()
         # todo: option
-        # self.device.kill(self.app.pid)
+        self.device.kill(self.app.pid)
 
     def dump_with_plugins(self):
         # handle plugins
@@ -189,7 +192,11 @@ class IPADump(object):
 
         pkd.detach()
 
+        self.fetch_with_new_process(decrypted)
+
+    def fetch_with_new_process(self, decrypted):
         pid = self.device.spawn('/bin/ps')
+        time.sleep(1)
         sh = self.device.attach(pid)
         script = sh.create_script(self.agent_source)
         script.set_log_handler(on_console)
