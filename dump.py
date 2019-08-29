@@ -249,7 +249,7 @@ def main():
                    keep_watch=args.keep_watch,
                    output=args.output,
                    verbose=args.verbose,
-                   skip_plugins=args.scrip_plugins)
+                   skip_plugins=args.skip_plugins)
     task.run()
 
 
