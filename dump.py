@@ -111,7 +111,7 @@ def on_console(level, text):
 
 class IPADump(object):
 
-    def __init__(self, device, app, output=None, verbose=False, keep_watch=False):
+    def __init__(self, device, app, output=None, verbose=False, keep_watch=False, skip_plugins=False):
         self.device = device
         self.app = app
         self.session = None
@@ -119,6 +119,7 @@ class IPADump(object):
         self.tasks = {}
         self.output = output
         self.verbose = verbose
+        self.skip_plugins = skip_plugins
         self.opt = {
             'keepWatch': keep_watch,
             'verbose': verbose,
@@ -158,7 +159,7 @@ class IPADump(object):
         self.script = script
         self.root = self.script.exports.root()
 
-        if len(self.plugins):
+        if len(self.plugins) and self.skip_plugins == False:
             self.dump_with_plugins()
         else:
             decrypted = script.exports.decrypt(self.root)
@@ -237,7 +238,9 @@ def main():
     parser.add_argument('-o', '--output', help='output filename')
     parser.add_argument('-v', '--verbose', help='verbose mode', action='store_true')
     parser.add_argument('--keep-watch', action='store_true',
-                        default=False, help='preserve WatchOS app')
+                        default=False, help='preserve WatchOS app'),
+    parser.add_argument('--skip-plugins', action='store_true',
+                        default=False, help='skip app plugins')
     args = parser.parse_args()
 
     dev, app = find_app(args.app, args.device, args.ip)
@@ -245,7 +248,8 @@ def main():
     task = IPADump(dev, app,
                    keep_watch=args.keep_watch,
                    output=args.output,
-                   verbose=args.verbose)
+                   verbose=args.verbose,
+                   skip_plugins=args.scrip_plugins)
     task.run()
 
 
