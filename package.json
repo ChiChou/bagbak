@@ -1,0 +1,33 @@
+{
+  "name": "saltedfish",
+  "version": "1.0.0",
+  "description": "Salted Fish",
+  "main": "agent/index.ts",
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "frida-compile agent/index.ts -o dist/agent.js",
+    "watch": "npm run build -- -w"
+  },
+  "author": "CodeColorist",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/frida-gum": "^14.2.0",
+    "@types/node": "^12.11.1",
+    "frida-compile": "^9.0.8"
+  },
+  "dependencies": {
+    "frida": "^12.7.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChiChou/frida-ipa-dump.git"
+  },
+  "keywords": [
+    "ios",
+    "dump"
+  ],
+  "bugs": {
+    "url": "https://github.com/ChiChou/frida-ipa-dump/issues"
+  },
+  "homepage": "https://github.com/ChiChou/frida-ipa-dump#readme"
+}
