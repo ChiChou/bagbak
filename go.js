@@ -174,26 +174,29 @@ async function main(target) {
   await pkdScript.load()
   await pkdScript.exports.skipPkdValidationFor(session.pid)
 
-  const pids = await script.exports.launchAll()
-
-  for (let pid of pids) {
-    const pluginSession = await dev.attach(pid)
-    const pluginScript = await pluginSession.createScript(js)
-
-    if (await pkdScript.exports.jetsam(pid) !== 0) {
-      throw new Error(`unable to unchain ${pid}`)
+  try {
+    const pids = await script.exports.launchAll()
+    for (let pid of pids) {
+      const pluginSession = await dev.attach(pid)
+      const pluginScript = await pluginSession.createScript(js)
+  
+      if (await pkdScript.exports.jetsam(pid) !== 0) {
+        throw new Error(`unable to unchain ${pid}`)
+      }
+  
+      await pluginScript.load()
+      await pluginScript.exports.prepare(c)
+      const childHandler = new Handler()
+      childHandler.connect(pluginScript)
+  
+      await pluginScript.exports.dump()
+  
+      await pluginScript.unload()
+      await pluginSession.detach()
+      await dev.kill(pid)
     }
-
-    await pluginScript.load()
-    await pluginScript.exports.prepare(c)
-    const childHandler = new Handler()
-    childHandler.connect(pluginScript)
-
-    await pluginScript.exports.dump()
-
-    await pluginScript.unload()
-    await pluginSession.detach()
-    await dev.kill(pid)
+  } catch(ex) {
+    console.warn(`unable to dump plugins ${ex}`)
   }
 
   await script.unload()
