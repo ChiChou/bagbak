@@ -2,7 +2,8 @@ const frida = require('frida')
 
 const fs = require('fs').promises
 const path = require('path')
-const os = require('os')
+
+const OUTPUT = 'dump'
 
 class Blob {
   session = ''
@@ -66,9 +67,10 @@ class Handler {
     } else if (event === 'data') {
       const blob = this.blob(session)
       if (index != blob.index + 1)
-        throw new Error('invalid index')
+        throw new Error(`invalid index ${index}, expected ${blob.index + 1}`)
       blob.size += data.length
       blob.storage.push(data)
+      blob.index++
       this.ack()
     } else if (event === 'end') {
       
@@ -78,7 +80,8 @@ class Handler {
   }
 
   async patch({ offset, blob, size, filename }) {
-    const fd = await fs.open(path.basename(filename), 'a')
+    const output = path.join('dump', path.basename(filename))
+    const fd = await fs.open(output, 'a')
     let buf = null
     if (blob) {
       buf = Buffer.concat(this.blob(blob).storage)
@@ -101,11 +104,11 @@ class Handler {
   async download({ event, session, stat, size, filename }, data) {
     // this.cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'saltedfish-'))
     if (event === 'begin') {
-      const name = path.basename(filename)
-      const fd = await fs.open(name, 'w', stat.mode)
+      const output = path.join('dump', path.basename(filename))
+      const fd = await fs.open(output, 'w', stat.mode)
       const file = new File(session, size, fd)
       this.files.set(session, file)
-      await fs.utimes(name, stat.atimeMs, stat.mtimeMs)
+      await fs.utimes(output, stat.atimeMs, stat.mtimeMs)
       this.ack()
     } else if (event === 'data') {
       const file = this.file(session)
@@ -142,6 +145,13 @@ class Handler {
 }
 
 async function main(target) {
+  try {
+    await fs.mkdir(OUTPUT)
+  } catch(ex) {
+    if (ex.code !== 'EEXIST')
+      throw ex
+  }
+
   const dev = await frida.getUsbDevice()
   const session = await dev.attach(target)
 
@@ -156,23 +166,36 @@ async function main(target) {
 
   await script.load()
   await script.exports.prepare(c)
+  await script.exports.dump()
 
-  // get env from main app
-  const env = await script.exports.environ();
-  console.log(env);
-  const plugins = await script.exports.plugins()
-  console.log(plugins);
 
   const pkdSession = await dev.attach('pkd')
   const pkdScript = await pkdSession.createScript(js)
-  await pkdScript.load();
+  await pkdScript.load()
+  await pkdScript.exports.skipPkdValidationFor(session.pid)
 
-  for (let plugin of plugins) {
-    console.log('+', await pkdScript.exports.launch(session.pid, plugin.executable, env));
+  const pids = await script.exports.launchAll()
+
+  for (let pid of pids) {
+    const pluginSession = await dev.attach(pid)
+    const pluginScript = await pluginSession.createScript(js)
+
+    if (await pkdScript.exports.jetsam(pid) !== 0) {
+      throw new Error(`unable to unchain ${pid}`)
+    }
+
+    await pluginScript.load()
+    await pluginScript.exports.prepare(c)
+    const childHandler = new Handler()
+    childHandler.connect(pluginScript)
+
+    await pluginScript.exports.dump()
+
+    await pluginScript.unload()
+    await pluginSession.detach()
+    await dev.kill(pid)
   }
 
-  // const status = await script.exports.dump()
-  // console.log(status)
   await script.unload()
   await session.detach()
 
@@ -180,6 +203,8 @@ async function main(target) {
   await pkdSession.detach()
 }
 
-main('WordPress').catch(e => {
+main(process.argv[2]).catch(e => {
+  console.error('FATAL ERROR')
   console.error(e)
+  process.exit()
 })
