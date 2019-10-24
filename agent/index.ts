@@ -3,9 +3,8 @@ if (typeof CModule === 'undefined')
 
 import { dump, prepare } from './dump';
 import environ from './env';
-import { plugins, launchAll, jetsam } from './pkd';
-import { launch, stop } from './launchd';
-import { skipPkdValidationFor } from './pluginkit';
+import { skipPkdValidationFor, jetsam } from './pkd';
+import { launchAll, plugins } from './pluginkit';
 
 Process.setExceptionHandler(ex => {
   console.error('Process crash:')
@@ -16,13 +15,10 @@ rpc.exports = {
   dump,
   prepare,
   environ,
-
   plugins,
   launchAll,
 
   // pkd
-  launch,
-  stop,
   skipPkdValidationFor,
   jetsam,
 

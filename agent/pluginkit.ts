@@ -1,14 +1,3 @@
-export function skipPkdValidationFor(pid: number) {
-  if ('PKDPlugIn' in ObjC.classes) {
-    const method = ObjC.classes.PKDPlugIn['- allowForClient:'];
-    const original = method.implementation;
-    method.implementation = ObjC.implement(method, function(self, sel, conn) {
-      // race condition huh? we don't care
-      return pid === new ObjC.Object(conn).pid() ?
-        NULL : original(self, sel, conn);
-    })
-  }
-}
 
 export function plugins() {
   const {
@@ -31,4 +20,45 @@ export function plugins() {
   }
   args.release();
   return result;
+}
+
+
+export function launch(id: string) {
+  const { NSExtension, NSString } = ObjC.classes;
+
+  const identifier = NSString.stringWithString_(id);
+  const extension = NSExtension.extensionWithIdentifier_error_(identifier, NULL);
+  identifier.release();
+  if (!extension)
+    return Promise.reject(`unable to create extension ${id}`);
+
+  const pid = extension['- _plugInProcessIdentifier']();
+  if (pid)
+    return Promise.resolve(pid);
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      const pid = extension['- _plugInProcessIdentifier']();
+      extension.release();
+      if (pid)
+        resolve(pid);
+      else
+        reject('unable to get extension pid');
+    }, 400)
+
+    extension.beginExtensionRequestWithInputItems_completion_(NULL, new ObjC.Block({
+      retType: 'void',
+      argTypes: ['object'],
+      implementation(requestIdentifier) {
+        clearTimeout(timeout);
+        const pid = extension.pidForRequestIdentifier_(requestIdentifier);
+        extension.release();
+        resolve(pid);
+      }
+    }))
+  })
+}
+
+export function launchAll() {
+  return Promise.all(plugins().map(({ id }) => launch(id)));
 }
