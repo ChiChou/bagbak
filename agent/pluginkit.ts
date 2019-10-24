@@ -60,5 +60,5 @@ export function launch(id: string) {
 }
 
 export function launchAll() {
-  return Promise.all(plugins().map(({ id }) => launch(id)));
+  return Promise.all(plugins().map(id => launch(id)));
 }
