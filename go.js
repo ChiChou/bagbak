@@ -1,21 +1,55 @@
 const frida = require('frida')
 const progress = require('cli-progress')
+const chalk = require('chalk')
 
 const fs = require('fs').promises
 const path = require('path')
 
 const OUTPUT = 'dump'
 
+const BAR_OPTS = {
+  format: chalk.cyan('{bar}') + 
+    chalk.grey(' | {percentage}% | {received}/{size}'),
+  barCompleteChar: '\u2588',
+  barIncompleteChar: '\u2591',
+}
+
+function toBarPayload(obj) {
+  const result = {}
+  for (let key of ['received', 'size']) {
+    result[key] = (obj[key] / 1024 / 1024).toFixed(2) + 'Mib'
+  }
+  return result
+}
+
 class Blob {
   session = ''
   index = 0
   size = 0
-  reveiced = 0
+  received = 0
   storage = []
 
   constructor(session, size) {
     this.session = session
     this.size = size
+
+    this.bar = new progress.SingleBar(BAR_OPTS)
+    this.bar.start(size, 0)
+  }
+
+  feed(index, data) {
+    if (index != this.index + 1)
+        throw new Error(`invalid index ${index}, expected ${blob.index + 1}`)
+
+    this.received += data.length
+    this.storage.push(data)
+    this.index++
+    this.bar.update(this.received, toBarPayload(this))
+  }
+
+  done() {
+    this.bar.stop()
+    return Buffer.concat(this.storage)
   }
 }
 
@@ -31,13 +65,13 @@ class File {
     this.session = session
     this.size = size
     this.fd = fd
-    this.bar = new progress.SingleBar({}, progress.Presets.shades_classic)
+    this.bar = new progress.SingleBar(BAR_OPTS)
     this.bar.start(size, 0)
   }
 
   progress(length) {
     this.received += length
-    this.bar.update(this.received)
+    this.bar.update(this.received, toBarPayload(this))
   }
 
   done() {
@@ -74,19 +108,17 @@ class Handler {
 
   async memcpy({ event, session, size, index }, data) {
     if (event === 'begin') {
+      console.log(chalk.green('fetching decrypted data'))
+
       const blob = new Blob(session, size)
       this.blobs.set(session, blob)
       this.ack()
     } else if (event === 'data') {
       const blob = this.blob(session)
-      if (index != blob.index + 1)
-        throw new Error(`invalid index ${index}, expected ${blob.index + 1}`)
-      blob.size += data.length
-      blob.storage.push(data)
-      blob.index++
+      blob.feed(index, data)
       this.ack()
     } else if (event === 'end') {
-      
+
     } else {
       throw new Error('NOTREACHED')
     }
@@ -97,8 +129,9 @@ class Handler {
     const fd = await fs.open(output, 'a')
     let buf = null
     if (blob) {
-      buf = Buffer.concat(this.blob(blob).storage)
+      buf = this.blob(blob).done()
       this.blobs.delete(blob)
+      console.log()
     } else if (size) {
       buf = Buffer.alloc(size)
       buf.fill(0)
@@ -114,9 +147,10 @@ class Handler {
     this.script.post({ type: 'ack' })
   }
 
-  async download({ event, session, stat, filename }, data) {
+  async download({ event, session, stat, filename, relative }, data) {
     // this.cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'saltedfish-'))
     if (event === 'begin') {
+      console.log(chalk.bold('download'), chalk.greenBright(relative))
       const output = path.join('dump', path.basename(filename))
       const fd = await fs.open(output, 'w', stat.mode)
       const file = new File(session, stat.size, fd)
@@ -132,6 +166,7 @@ class Handler {
       const file = this.file(session)
       file.done()
       this.files.delete(session)
+      console.log()
     } else {
       throw new Error('NOTREACHED')
     }
@@ -162,10 +197,10 @@ function detached(reason, crash) {
   if (reason === 'application-requested')
     return
 
-  console.error('FATAL ERROR: session detached')
-  console.error('reason:', reason)
+  console.error(chalk.red('FATAL ERROR: session detached'))
+  console.error('reason:', chalk.yellow(reason))
   for (let [key, val] of Object.entries(crash)) {
-    console.log(`${key}:`, val)
+    console.log(`${key}:`, typeof val === 'string' ? chalk.redBright(val) : val)
   }
 }
 
@@ -190,11 +225,12 @@ async function main(target) {
   const handler = new Handler()
   handler.connect(script)
 
+  console.log('dump main app')
   await script.load()
   await script.exports.prepare(c)
   await script.exports.dump()
 
-
+  console.log('patch PluginKid validation')
   const pkdSession = await dev.attach('pkd')
   const pkdScript = await pkdSession.createScript(js)
   await pkdScript.load()
@@ -202,6 +238,7 @@ async function main(target) {
   pkdSession.detached.connect(detached)
 
   try {
+    console.log('dump extensions')
     const pids = await script.exports.launchAll()
     for (let pid of pids) {
       const pluginSession = await dev.attach(pid)
@@ -224,7 +261,7 @@ async function main(target) {
       await dev.kill(pid)
     }
   } catch(ex) {
-    console.warn(`unable to dump plugins ${ex}`)
+    console.warn(chalk.redBright(`unable to dump plugins ${ex}`))
   }
 
   await script.unload()
@@ -235,7 +272,7 @@ async function main(target) {
 }
 
 main(process.argv[2]).catch(e => {
-  console.error('FATAL ERROR')
-  console.error(e)
+  console.error(chalk.red('FATAL ERROR'))
+  console.error(chalk.red(e))
   process.exit()
 })
