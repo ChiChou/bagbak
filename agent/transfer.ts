@@ -1,4 +1,5 @@
 import { createReadStream, statSync } from "fs";
+import { relativeTo } from "./path";
 
 function send2(payload: any, data?: ArrayBuffer | number[] | null | undefined) {
   send(payload, data);
@@ -56,14 +57,15 @@ export async function download(filename: string) {
   const subject = 'download';
   const { size, atimeMs, mtimeMs, mode } = statSync(filename);
   const stream = createReadStream(filename, { highWaterMark });
+  const base = ObjC.classes.NSBundle.mainBundle().bundlePath().toString();
+  const relative = relativeTo(base, filename);
 
-  console.log('download', filename)
-  // todo: normalize path
   send2({
     subject,
     event: 'begin',
     session,
     filename,
+    relative,
     stat: {
       size,
       atimeMs,
@@ -72,9 +74,6 @@ export async function download(filename: string) {
     },
   });
 
-  // const format = (size: number) => `${(size / 1024 / 1024).toFixed(2)}MiB`
-
-  // let sent = 0;
   await new Promise((resolve, reject) =>
     stream
       .on('data', chunk => {
@@ -83,9 +82,6 @@ export async function download(filename: string) {
           event: 'data',
           session,
         }, chunk);
-
-        // sent += chunk.byteLength
-        // console.log(`downloaded ${format(sent)} of ${format(size)}, ${(sent * 100 / size).toFixed(2)}%`)
       })
       .on('end', resolve)
       .on('error', reject));
