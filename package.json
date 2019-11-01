@@ -16,6 +16,7 @@
     "frida-compile": "^9.0.8"
   },
   "dependencies": {
+    "cli-progress": "^3.3.1",
     "frida": "^12.7.11"
   },
   "repository": {
