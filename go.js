@@ -1,4 +1,5 @@
 const frida = require('frida')
+const progress = require('cli-progress')
 
 const fs = require('fs').promises
 const path = require('path')
@@ -22,7 +23,7 @@ class File {
   session = ''
   index = 0
   size = 0
-  reveiced = 0
+  received = 0
   name = ''
   fd = null
 
@@ -30,6 +31,18 @@ class File {
     this.session = session
     this.size = size
     this.fd = fd
+    this.bar = new progress.SingleBar({}, progress.Presets.shades_classic)
+    this.bar.start(size, 0)
+  }
+
+  progress(length) {
+    this.received += length
+    this.bar.update(this.received)
+  }
+
+  done() {
+    this.bar.stop()
+    this.fd.close()
   }
 }
 
@@ -101,22 +114,23 @@ class Handler {
     this.script.post({ type: 'ack' })
   }
 
-  async download({ event, session, stat, size, filename }, data) {
+  async download({ event, session, stat, filename }, data) {
     // this.cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'saltedfish-'))
     if (event === 'begin') {
       const output = path.join('dump', path.basename(filename))
       const fd = await fs.open(output, 'w', stat.mode)
-      const file = new File(session, size, fd)
+      const file = new File(session, stat.size, fd)
       this.files.set(session, file)
       await fs.utimes(output, stat.atimeMs, stat.mtimeMs)
       this.ack()
     } else if (event === 'data') {
       const file = this.file(session)
+      file.progress(data.length)
       await file.fd.write(data)
       this.ack()
     } else if (event === 'end') {
       const file = this.file(session)
-      file.fd.close()
+      file.done()
       this.files.delete(session)
     } else {
       throw new Error('NOTREACHED')
@@ -145,9 +159,14 @@ class Handler {
 }
 
 function detached(reason, crash) {
+  if (reason === 'application-requested')
+    return
+
   console.error('FATAL ERROR: session detached')
   console.error('reason:', reason)
-  console.error('report:', crash)
+  for (let [key, val] of Object.entries(crash)) {
+    console.log(`${key}:`, val)
+  }
 }
 
 async function main(target) {

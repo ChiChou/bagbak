@@ -57,6 +57,7 @@ export async function download(filename: string) {
   const { size, atimeMs, mtimeMs, mode } = statSync(filename);
   const stream = createReadStream(filename, { highWaterMark });
 
+  console.log('download', filename)
   // todo: normalize path
   send2({
     subject,
@@ -71,9 +72,9 @@ export async function download(filename: string) {
     },
   });
 
-  const format = (size: number) => `${(size / 1024 / 1024).toFixed(2)}MiB`
+  // const format = (size: number) => `${(size / 1024 / 1024).toFixed(2)}MiB`
 
-  let sent = 0;
+  // let sent = 0;
   await new Promise((resolve, reject) =>
     stream
       .on('data', chunk => {
@@ -83,8 +84,8 @@ export async function download(filename: string) {
           session,
         }, chunk);
 
-        sent += chunk.byteLength
-        console.log(`downloaded ${format(sent)} of ${format(size)}, ${(sent * 100 / size).toFixed(2)}%`)
+        // sent += chunk.byteLength
+        // console.log(`downloaded ${format(sent)} of ${format(size)}, ${(sent * 100 / size).toFixed(2)}%`)
       })
       .on('end', resolve)
       .on('error', reject));
