@@ -144,6 +144,12 @@ class Handler {
   }
 }
 
+function detached(reason, crash) {
+  console.error('FATAL ERROR: session detached')
+  console.error('reason:', reason)
+  console.error('report:', crash)
+}
+
 async function main(target) {
   try {
     await fs.mkdir(OUTPUT)
@@ -154,6 +160,7 @@ async function main(target) {
 
   const dev = await frida.getUsbDevice()
   const session = await dev.attach(target)
+  session.detached.connect(detached)
 
   const read = (...args) => fs.readFile(path.join(...args)).then(buf => buf.toString())
 
@@ -173,13 +180,15 @@ async function main(target) {
   const pkdScript = await pkdSession.createScript(js)
   await pkdScript.load()
   await pkdScript.exports.skipPkdValidationFor(session.pid)
+  pkdSession.detached.connect(detached)
 
   try {
     const pids = await script.exports.launchAll()
     for (let pid of pids) {
       const pluginSession = await dev.attach(pid)
-      const pluginScript = await pluginSession.createScript(js)
-  
+      const pluginScript = await pluginSession.createScript(js)  
+      pluginSession.detached.connect(detached)
+
       if (await pkdScript.exports.jetsam(pid) !== 0) {
         throw new Error(`unable to unchain ${pid}`)
       }
