@@ -1,4 +1,5 @@
-const frida = require('frida')
+#!/usr/bin/env node
+
 const progress = require('cli-progress')
 const chalk = require('chalk')
 
@@ -206,7 +207,7 @@ function detached(reason, crash) {
   }
 }
 
-async function main(target) {
+async function dump(dev, session) {
   try {
     await fs.mkdir(OUTPUT)
   } catch(ex) {
@@ -214,8 +215,6 @@ async function main(target) {
       throw ex
   }
 
-  const dev = await frida.getUsbDevice()
-  const session = await dev.attach(target)
   session.detached.connect(detached)
 
   const read = (...args) => fs.readFile(path.join(...args)).then(buf => buf.toString())
@@ -273,7 +272,33 @@ async function main(target) {
   await pkdSession.detach()
 }
 
-main(process.argv[2]).catch(e => {
+
+const Device = require('./lib/device')
+const { getopt } = require('./lib/opts')
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+
+async function main() {
+  const opt = getopt()
+  const dev = await Device.usb()
+  const session = await dev.run(opt.app)
+  const { pid } = session
+  await dump(dev.dev, session)
+
+  await session.detach()
+  await dev.dev.kill(pid)
+
+  // const list = await dev.dev.enumerateApplications()
+  // for (let app of list) {
+  //   delete app.smallIcon
+  //   delete app.largeIcon
+  // }
+  // console.table(list)
+}
+
+
+main().catch(e => {
   console.error(chalk.red('FATAL ERROR'))
   console.error(chalk.red(e))
   process.exit()
