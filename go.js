@@ -198,6 +198,9 @@ function detached(reason, crash) {
 
   console.error(chalk.red('FATAL ERROR: session detached'))
   console.error('reason:', chalk.yellow(reason))
+  if (reason === 'server-terminated')
+    return
+
   for (let [key, val] of Object.entries(crash)) {
     console.log(`${key}:`, typeof val === 'string' ? chalk.redBright(val) : val)
   }
