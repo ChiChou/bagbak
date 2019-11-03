@@ -10,6 +10,9 @@
   },
   "author": "CodeColorist",
   "license": "MIT",
+  "bin": {
+    "saltedfish": "./go.js"
+  },
   "devDependencies": {
     "@types/frida-gum": "^14.2.0",
     "@types/node": "^12.11.1",
