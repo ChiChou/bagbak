@@ -1,7 +1,7 @@
 if (typeof CModule === 'undefined')
   throw new Error('Your frida does not support CModule. Version: ' + Frida.version)
 
-import { dump, prepare } from './dump';
+import { dump, prepare, base } from './dump';
 import environ from './env';
 import { skipPkdValidationFor, jetsam } from './pkd';
 import { launchAll, plugins } from './pluginkit';
@@ -17,6 +17,7 @@ rpc.exports = {
   environ,
   plugins,
   launchAll,
+  base,
 
   // pkd
   skipPkdValidationFor,

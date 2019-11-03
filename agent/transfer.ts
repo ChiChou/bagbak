@@ -57,15 +57,12 @@ export async function download(filename: string) {
   const subject = 'download';
   const { size, atimeMs, mtimeMs, mode } = statSync(filename);
   const stream = createReadStream(filename, { highWaterMark });
-  const base = ObjC.classes.NSBundle.mainBundle().bundlePath().toString();
-  const relative = relativeTo(base, filename);
 
   send2({
     subject,
     event: 'begin',
     session,
     filename,
-    relative,
     stat: {
       size,
       atimeMs,
