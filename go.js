@@ -241,7 +241,7 @@ async function dump(dev, session, opt) {
 
   try {
     const stat = await fs.stat(parent)
-    if (stat.isDirectory())
+    if (stat.isDirectory() && !opt.override)
       throw new Error(`Destination ${parent} already exists. Try --override`)
   } catch(ex) {
     if (ex.code !== 'ENOENT')
@@ -310,6 +310,7 @@ async function dump(dev, session, opt) {
   await pkdScript.unload()
   await pkdSession.detach()
 
+  console.log('Congrats!')
   console.log('open', chalk.greenBright(parent))
 }
 
