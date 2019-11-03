@@ -148,7 +148,6 @@ class Handler {
   }
 
   async download({ event, session, stat, filename, relative }, data) {
-    // this.cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'saltedfish-'))
     if (event === 'begin') {
       console.log(chalk.bold('download'), chalk.greenBright(relative))
       const output = path.join('dump', path.basename(filename))
