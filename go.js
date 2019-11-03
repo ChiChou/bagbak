@@ -1,11 +1,12 @@
-const frida = require('frida')
+#!/usr/bin/env node
+
 const progress = require('cli-progress')
 const chalk = require('chalk')
 
 const fs = require('fs').promises
 const path = require('path')
 
-const OUTPUT = 'dump'
+const mkdirp = require('./lib/mkdirp')
 
 const BAR_OPTS = {
   format: chalk.cyan('{bar}') + 
@@ -81,14 +82,23 @@ class File {
 }
 
 class Handler {
-  constructor() {
+  /**
+   * @param {string} cwd working directory
+   * @param {string} root bundle root
+   */
+  constructor(cwd, root) {
     this.script = null
     this.blobs = new Map()
     this.files = new Map()
-    this.cwd = null
+    this.root = root
+    this.cwd = cwd
     this.session = null
   }
   
+  /**
+   * get Blob by uuid
+   * @param {string} id uuid
+   */
   blob(id) {
     const blob = this.blobs.get(id)
     if (!blob) {
@@ -98,6 +108,10 @@ class Handler {
     return blob
   }
 
+  /**
+   * get file object by uuid
+   * @param {string} id uuid
+   */
   file(id) {
     const fd = this.files.get(id)
     if (!fd) {
@@ -124,14 +138,27 @@ class Handler {
     }
   }
 
+  /**
+   * secure path concatenation
+   * @param {string} filename relative path component
+   */
+  async output(filename) {
+    const abs = path.resolve(this.cwd, path.relative(this.root, filename))
+    const rel = path.relative(this.cwd, abs)
+    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+      await mkdirp(path.dirname(abs))
+      return abs
+    }
+    throw Error(`Suspicious path detected: ${filename}`)
+  }
+
   async patch({ offset, blob, size, filename }) {
-    const output = path.join('dump', path.basename(filename))
+    const output = await this.output(filename)
     const fd = await fs.open(output, 'a')
     let buf = null
     if (blob) {
       buf = this.blob(blob).done()
       this.blobs.delete(blob)
-      console.log()
     } else if (size) {
       buf = Buffer.alloc(size)
       buf.fill(0)
@@ -147,10 +174,11 @@ class Handler {
     this.script.post({ type: 'ack' })
   }
 
-  async download({ event, session, stat, filename, relative }, data) {
+  async download({ event, session, stat, filename }, data) {
     if (event === 'begin') {
-      console.log(chalk.bold('download'), chalk.greenBright(relative))
-      const output = path.join('dump', path.basename(filename))
+      console.log(chalk.bold('download'), chalk.greenBright(path.basename(filename)))
+      const output = await this.output(filename)
+
       const fd = await fs.open(output, 'w', stat.mode)
       const file = new File(session, stat.size, fd)
       this.files.set(session, file)
@@ -165,7 +193,6 @@ class Handler {
       const file = this.file(session)
       file.done()
       this.files.delete(session)
-      console.log()
     } else {
       throw new Error('NOTREACHED')
     }
@@ -206,29 +233,40 @@ function detached(reason, crash) {
   }
 }
 
-async function main(target) {
+async function dump(dev, session, opt) {
+  const output = opt.output || 'dump'
+  await mkdirp(output)
+
+  const parent = path.join(output, opt.app, 'Payload')
+
   try {
-    await fs.mkdir(OUTPUT)
+    const stat = await fs.stat(parent)
+    if (stat.isDirectory() && !opt.override)
+      throw new Error(`Destination ${parent} already exists. Try --override`)
   } catch(ex) {
-    if (ex.code !== 'EEXIST')
-      throw ex
+    if (ex.code !== 'ENOENT')
+      throw ex  
   }
 
-  const dev = await frida.getUsbDevice()
-  const session = await dev.attach(target)
   session.detached.connect(detached)
 
   const read = (...args) => fs.readFile(path.join(...args)).then(buf => buf.toString())
-
   const js = await read('dist', 'agent.js')
   const c = await read('cmod', 'source.c')
 
   const script = await session.createScript(js)
-  const handler = new Handler()
+  await script.load()
+  const root = await script.exports.base()
+  const cwd = path.join(parent, path.basename(root))
+  await mkdirp(cwd)
+
+  console.log('app root:', chalk.green(root))
+
+  const handler = new Handler(cwd, root)
   handler.connect(script)
 
   console.log('dump main app')
-  await script.load()
+  
   await script.exports.prepare(c)
   await script.exports.dump()
 
@@ -253,7 +291,7 @@ async function main(target) {
   
       await pluginScript.load()
       await pluginScript.exports.prepare(c)
-      const childHandler = new Handler()
+      const childHandler = new Handler(cwd, root)
       childHandler.connect(pluginScript)
   
       await pluginScript.exports.dump()
@@ -271,9 +309,44 @@ async function main(target) {
 
   await pkdScript.unload()
   await pkdSession.detach()
+
+  console.log('Congrats!')
+  console.log('open', chalk.greenBright(parent))
 }
 
-main(process.argv[2]).catch(e => {
+
+const Device = require('./lib/device')
+const { getopt } = require('./lib/opts')
+
+
+async function main() {
+  const opt = getopt()
+  const dev = await Device.usb()
+
+  if (opt.app) {
+    const session = await dev.run(opt.app)
+    const { pid } = session
+    await dump(dev.dev, session, opt)
+  
+    await session.detach()
+    await dev.dev.kill(pid)
+    
+    return
+  } else if (opt.list) {
+    const list = await dev.dev.enumerateApplications()
+    for (let app of list) {
+      delete app.smallIcon
+      delete app.largeIcon
+    }
+    console.table(list)
+    return
+  }
+
+  throw new Error('NOTREACHED')
+}
+
+
+main().catch(e => {
   console.error(chalk.red('FATAL ERROR'))
   console.error(chalk.red(e))
   process.exit()
