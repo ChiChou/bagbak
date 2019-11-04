@@ -371,7 +371,7 @@ async function main() {
     return
   }
 
-  throw new Error('NOTREACHED')
+  program.help()
 }
 
 
