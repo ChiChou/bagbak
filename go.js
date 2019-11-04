@@ -250,7 +250,7 @@ async function dump(dev, session, opt) {
 
   session.detached.connect(detached)
 
-  const read = (...args) => fs.readFile(path.join(...args)).then(buf => buf.toString())
+  const read = (...args) => fs.readFile(path.join(__dirname, ...args)).then(buf => buf.toString())
   const js = await read('dist', 'agent.js')
   const c = await read('cmod', 'source.c')
 
