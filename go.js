@@ -9,7 +9,7 @@ const path = require('path')
 const mkdirp = require('./lib/mkdirp')
 
 const BAR_OPTS = {
-  format: chalk.cyan('{bar}') + 
+  format: chalk.cyan('{bar}') +
     chalk.grey(' | {percentage}% | {received}/{size}'),
   barCompleteChar: '\u2588',
   barIncompleteChar: '\u2591',
@@ -40,7 +40,7 @@ class Blob {
 
   feed(index, data) {
     if (index != this.index + 1)
-        throw new Error(`invalid index ${index}, expected ${blob.index + 1}`)
+      throw new Error(`invalid index ${index}, expected ${blob.index + 1}`)
 
     this.received += data.length
     this.storage.push(data)
@@ -94,7 +94,7 @@ class Handler {
     this.cwd = cwd
     this.session = null
   }
-  
+
   /**
    * get Blob by uuid
    * @param {string} id uuid
@@ -243,9 +243,9 @@ async function dump(dev, session, opt) {
     const stat = await fs.stat(parent)
     if (stat.isDirectory() && !opt.override)
       throw new Error(`Destination ${parent} already exists. Try --override`)
-  } catch(ex) {
+  } catch (ex) {
     if (ex.code !== 'ENOENT')
-      throw ex  
+      throw ex
   }
 
   session.detached.connect(detached)
@@ -266,7 +266,7 @@ async function dump(dev, session, opt) {
   handler.connect(script)
 
   console.log('dump main app')
-  
+
   await script.exports.prepare(c)
   await script.exports.dump()
 
@@ -282,25 +282,25 @@ async function dump(dev, session, opt) {
     const pids = await script.exports.launchAll()
     for (let pid of pids) {
       const pluginSession = await dev.attach(pid)
-      const pluginScript = await pluginSession.createScript(js)  
+      const pluginScript = await pluginSession.createScript(js)
       pluginSession.detached.connect(detached)
 
       if (await pkdScript.exports.jetsam(pid) !== 0) {
         throw new Error(`unable to unchain ${pid}`)
       }
-  
+
       await pluginScript.load()
       await pluginScript.exports.prepare(c)
       const childHandler = new Handler(cwd, root)
       childHandler.connect(pluginScript)
-  
+
       await pluginScript.exports.dump()
-  
+
       await pluginScript.unload()
       await pluginSession.detach()
       await dev.kill(pid)
     }
-  } catch(ex) {
+  } catch (ex) {
     console.warn(chalk.redBright(`unable to dump plugins ${ex}`))
   }
 
