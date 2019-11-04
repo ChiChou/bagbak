@@ -270,7 +270,7 @@ async function dump(dev, session, opt) {
   await script.exports.prepare(c)
   await script.exports.dump()
 
-  console.log('patch PluginKid validation')
+  console.log('patch PluginKit validation')
   const pkdSession = await dev.attach('pkd')
   const pkdScript = await pkdSession.createScript(js)
   await pkdScript.load()
