@@ -1,6 +1,5 @@
-# saltedfish
-咸鱼
+# bagbak
 
 ## Example
 
-Manually launch app, then `node go.js WordPress`
+`bagbak WordPress`
