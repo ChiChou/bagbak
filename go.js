@@ -316,14 +316,13 @@ async function dump(dev, session, opt) {
 
 
 const Device = require('./lib/device')
-const { getopt } = require('./lib/opts')
 
 
 async function main() {
   const program = require('commander')
 
   program
-    .name('saltedfish')
+    .name('bagbak')
     .option('-l, --list', 'list apps')
     .option('-h, --host <host>', 'hostname')
     .option('-u, --uuid <uuid>', 'uuid of USB device')

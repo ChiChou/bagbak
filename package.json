@@ -1,7 +1,7 @@
 {
-  "name": "saltedfish",
+  "name": "bagbak",
   "version": "1.0.0",
-  "description": "Salted Fish",
+  "description": "Dump iOS app from a jailbroken device, based on frida.re",
   "main": "agent/index.ts",
   "scripts": {
     "prepare": "npm run build",
@@ -11,7 +11,7 @@
   "author": "CodeColorist",
   "license": "MIT",
   "bin": {
-    "saltedfish": "./go.js"
+    "bagbak": "./go.js"
   },
   "files": [
     "dist/agent.js",
