@@ -320,25 +320,52 @@ const { getopt } = require('./lib/opts')
 
 
 async function main() {
-  const opt = getopt()
-  const dev = await Device.usb()
+  const program = require('commander')
 
-  if (opt.app) {
-    const session = await dev.run(opt.app)
-    const { pid } = session
-    await dump(dev.dev, session, opt)
-  
-    await session.detach()
-    await dev.dev.kill(pid)
-    
-    return
-  } else if (opt.list) {
-    const list = await dev.dev.enumerateApplications()
+  program
+    .name('saltedfish')
+    .option('-l, --list', 'list apps')
+    .option('-h, --host <host>', 'hostname')
+    .option('-u, --uuid <uuid>', 'uuid of USB device')
+    .option('-o, --output <output>', 'output directory')
+    .usage('[bundle id or name]')
+
+  program.parse(process.argv)
+
+  if (program.uuid && program.host)
+    throw new Error('Use either uuid or host')
+
+  if (program.args.length > 1)
+    throw new Error('For stability, only decrypt one app once')
+
+  if (program.list && program.args.length)
+    throw new Error('Invalid command')
+
+  let device = null
+  if (program.uuid)
+    device = await Device.find(program.uuid)
+  else if (program.host)
+    device = await Device.connect(program.host)
+  else
+    device = await Device.usb()
+
+  if (program.list) {
+    const list = await device.dev.enumerateApplications()
     for (let app of list) {
       delete app.smallIcon
       delete app.largeIcon
     }
     console.table(list)
+    return
+  }
+
+  if (program.args.length === 1) {
+    const session = await device.run(opt.app)
+    const { pid } = session
+    await dump(device.dev, session, opt)
+
+    await session.detach()
+    await device.dev.kill(pid)
     return
   }
 
@@ -348,6 +375,6 @@ async function main() {
 
 main().catch(e => {
   console.error(chalk.red('FATAL ERROR'))
-  console.error(chalk.red(e))
+  console.error(e)
   process.exit()
 })

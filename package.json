@@ -15,11 +15,12 @@
   },
   "devDependencies": {
     "@types/frida-gum": "^14.2.0",
-    "@types/node": "^12.11.1",
+    "@types/node": "^12.12.5",
     "frida-compile": "^9.0.8"
   },
   "dependencies": {
     "cli-progress": "^3.3.1",
+    "commander": "^4.0.0",
     "frida": "^12.7.11"
   },
   "repository": {
