@@ -327,6 +327,7 @@ async function main() {
     .option('-h, --host <host>', 'hostname')
     .option('-u, --uuid <uuid>', 'uuid of USB device')
     .option('-o, --output <output>', 'output directory')
+    .option('-f, --override', 'override existing')
     .usage('[bundle id or name]')
 
   program.parse(process.argv)
@@ -359,7 +360,9 @@ async function main() {
   }
 
   if (program.args.length === 1) {
-    const session = await device.run(opt.app)
+    const app = program.args[0]
+    const opt = Object.assign({ app }, program)
+    const session = await device.run(app)
     const { pid } = session
     await dump(device.dev, session, opt)
 
