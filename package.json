@@ -13,6 +13,12 @@
   "bin": {
     "saltedfish": "./go.js"
   },
+  "files": [
+    "dist/agent.js",
+    "cmod/source.c",
+    "go.js",
+    "lib/"
+  ],
   "devDependencies": {
     "@types/frida-gum": "^14.2.0",
     "@types/node": "^12.12.5",
