@@ -54,7 +54,8 @@ export function launchAll() {
 
   // IntentsUI: _INUIExtensionHostContext
   // UserNotifications: _UNNotificationServiceExtensionHostContext
-  const frameworks = ['UserNotifications', 'IntentsUI']
+  // Messages: _MSMessageAppExtensionHostContext
+  const frameworks = ['UserNotifications', 'IntentsUI', 'Messages']
   for (let name of frameworks) {
     const bundle = ObjC.classes.NSBundle.bundleWithPath_(`/System/Library/Frameworks/${name}.framework`)
     if (bundle)
