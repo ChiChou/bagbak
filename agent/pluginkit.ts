@@ -30,7 +30,7 @@ export function launch(id: string) {
   const extension = NSExtension.extensionWithIdentifier_error_(identifier, NULL);
   identifier.release();
   if (!extension)
-    return Promise.reject(`unable to create extension ${id}`);
+    return Promise.reject(new Error(`unable to create extension ${id}`));
 
   const pid = extension['- _plugInProcessIdentifier']();
   if (pid)
@@ -72,7 +72,7 @@ export function launch(id: string) {
 const baseClazz = Memory.allocUtf8String('NSExtensionContext')
 Interceptor.attach(Module.findExportByName(null, 'objc_getClass')!, {
   onEnter(args) {
-    const clz:string = args[0].readUtf8String()!
+    const clz: string = args[0].readUtf8String()!
     if (clz.endsWith('ExtensionHostContext'))
       args[0] = baseClazz
   }
