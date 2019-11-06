@@ -1,5 +1,5 @@
 import { memcpy, download } from './transfer';
-import { normalize, relativeTo } from './path';
+import { normalize } from './path';
 
 type EncryptInfoTuple = [NativePointer, number, number, number, number];
 
@@ -22,8 +22,13 @@ export function base() {
 }
 
 export async function dump() {
+  // A song of ice & fire
+
   // load all frameworks
   warmup();
+
+  // freeze all threads
+  freeze();
 
   const bundle = base();
   for (let mod of Process.enumerateModules()) {
@@ -51,6 +56,7 @@ export async function dump() {
     send({ subject: 'patch', offset: fatOffset + offsetOfCmd, size: sizeOfCmd, filename });
   }
 
+  wakeup();
   beep();
   return 0;
 }
@@ -78,4 +84,17 @@ export function warmup(): void {
     const bundle = NSBundle.bundleWithPath_(path.stringByAppendingPathComponent_(name))
     bundle.load()
   }
+}
+
+const suspend = new NativeFunction(Module.findExportByName('libsystem_kernel.dylib', 'thread_suspend')!, 'pointer', ['uint']);
+const resume = new NativeFunction(Module.findExportByName('libsystem_kernel.dylib', 'thread_resume')!, 'pointer', ['uint']);
+
+export function freeze() {
+  for (let { id } of Process.enumerateThreads())
+    suspend(id)
+}
+
+export function wakeup() {
+  for (let { id } of Process.enumerateThreads())
+    resume(id)
 }
