@@ -37,20 +37,10 @@ export function launch(id: string) {
     return Promise.resolve(pid);
 
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      const pid = extension['- _plugInProcessIdentifier']();
-      extension.release();
-      if (pid)
-        resolve(pid);
-      else
-        reject('unable to get extension pid');
-    }, 400)
-
     extension.beginExtensionRequestWithInputItems_completion_(NULL, new ObjC.Block({
       retType: 'void',
       argTypes: ['object'],
       implementation(requestIdentifier) {
-        clearTimeout(timeout);
         const pid = extension.pidForRequestIdentifier_(requestIdentifier);
         extension.release();
         resolve(pid);
@@ -60,5 +50,16 @@ export function launch(id: string) {
 }
 
 export function launchAll() {
+  // hack: load NSExtensionContext subclasses
+
+  // IntentsUI: _INUIExtensionHostContext
+  // UserNotifications: _UNNotificationServiceExtensionHostContext
+  const frameworks = ['UserNotifications', 'IntentsUI']
+  for (let name of frameworks) {
+    const bundle = ObjC.classes.NSBundle.bundleWithPath_(`/System/Library/Frameworks/${name}.framework`)
+    if (bundle)
+      bundle.load()
+  }
+
   return Promise.all(plugins().map(id => launch(id)));
 }

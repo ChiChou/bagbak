@@ -228,9 +228,11 @@ function detached(reason, crash) {
   if (reason === 'server-terminated')
     return
 
-  for (let [key, val] of Object.entries(crash)) {
+  if (!crash)
+    return
+
+  for (let [key, val] of Object.entries(crash))
     console.log(`${key}:`, typeof val === 'string' ? chalk.redBright(val) : val)
-  }
 }
 
 async function dump(dev, session, opt) {
@@ -281,13 +283,13 @@ async function dump(dev, session, opt) {
     console.log('dump extensions')
     const pids = await script.exports.launchAll()
     for (let pid of pids) {
-      const pluginSession = await dev.attach(pid)
-      const pluginScript = await pluginSession.createScript(js)
-      pluginSession.detached.connect(detached)
-
       if (await pkdScript.exports.jetsam(pid) !== 0) {
         throw new Error(`unable to unchain ${pid}`)
       }
+
+      const pluginSession = await dev.attach(pid)
+      const pluginScript = await pluginSession.createScript(js)
+      pluginSession.detached.connect(detached)
 
       await pluginScript.load()
       await pluginScript.exports.prepare(c)
@@ -295,13 +297,13 @@ async function dump(dev, session, opt) {
       childHandler.connect(pluginScript)
 
       await pluginScript.exports.dump()
-
       await pluginScript.unload()
       await pluginSession.detach()
       await dev.kill(pid)
     }
   } catch (ex) {
     console.warn(chalk.redBright(`unable to dump plugins ${ex}`))
+    console.warn(ex)
   }
 
   await script.unload()
