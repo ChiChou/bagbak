@@ -49,18 +49,35 @@ export function launch(id: string) {
   })
 }
 
-export function launchAll() {
-  // hack: load NSExtensionContext subclasses
+/*
+  -[NSExtension _newExtensionContextAndGetConnection:assertion:inputItems:]
 
-  // IntentsUI: _INUIExtensionHostContext
-  // UserNotifications: _UNNotificationServiceExtensionHostContext
-  // Messages: _MSMessageAppExtensionHostContext
-  const frameworks = ['UserNotifications', 'IntentsUI', 'Messages']
-  for (let name of frameworks) {
-    const bundle = ObjC.classes.NSBundle.bundleWithPath_(`/System/Library/Frameworks/${name}.framework`)
-    if (bundle)
-      bundle.load()
+  v8 = _objc_msgSend((void *)self->_infoDictionary, "objectForKey:", CFSTR("NSExtension"));
+  v9 = _objc_msgSend(v8, "objectForKey:", CFSTR("NSExtensionContextHostClass"));
+  if ( v9
+    || (v9 = _objc_msgSend((void *)self->_infoDictionary, "objectForKey:", CFSTR("NSExtensionContextHostClass"))) != 0LL )
+  {
+    v10 = v6;
+    v11 = _objc_msgSend(v9, "UTF8String");
+    v12 = (void *)objc_getClass(v11);
+  }
+  else
+  {
+    v10 = v6;
+    v12 = _objc_msgSend(&OBJC_CLASS___NSExtensionContext, "class");
   }
 
+  if the given class does not exist, a nil ptr exception will throw
+ */
+const baseClazz = Memory.allocUtf8String('NSExtensionContext')
+Interceptor.attach(Module.findExportByName(null, 'objc_getClass')!, {
+  onEnter(args) {
+    const clz:string = args[0].readUtf8String()!
+    if (clz.endsWith('ExtensionHostContext'))
+      args[0] = baseClazz
+  }
+})
+
+export function launchAll() {
   return Promise.all(plugins().map(id => launch(id)));
 }
