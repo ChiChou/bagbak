@@ -369,7 +369,7 @@ async function main() {
     await dump(device.dev, session, opt)
 
     await session.detach()
-    await device.dev.kill(pid)
+    // await device.dev.kill(pid)
     return
   }
 
