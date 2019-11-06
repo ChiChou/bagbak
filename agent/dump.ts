@@ -22,6 +22,9 @@ export function base() {
 }
 
 export async function dump() {
+  // load all frameworks
+  warmup();
+
   const bundle = base();
   for (let mod of Process.enumerateModules()) {
     const filename = normalize(mod.path)
@@ -56,4 +59,23 @@ export function prepare(c: string) {
   const cm = new CModule(c);
   ctx.cm = cm
   ctx.findEncyptInfo = new NativeFunction(cm['find_encryption_info'], EncryptInfoTuple, ['pointer']);
+}
+
+export function warmup(): void {
+  const { NSFileManager, NSBundle } = ObjC.classes
+  const path = NSBundle.mainBundle().bundlePath().stringByAppendingPathComponent_('Frameworks')
+  const mgr = NSFileManager.defaultManager()
+  const pError = Memory.alloc(Process.pointerSize)
+  pError.writePointer(NULL)
+  const files = mgr.contentsOfDirectoryAtPath_error_(path, pError)
+  const err = pError.readPointer()
+  if (!err.isNull())
+    return void console.error(new ObjC.Object(err))
+  
+  const max = files.count()
+  for (let i = 0; i < max; i++) {
+    const name = files.objectAtIndex_(i)
+    const bundle = NSBundle.bundleWithPath_(path.stringByAppendingPathComponent_(name))
+    bundle.load()
+  }
 }
