@@ -22,6 +22,12 @@ That's all. Npm can handle all dependencies.
 
 It's known that USB device discovery on Windows is too slow that it always reach the timeout. In theory on Linux it should work. We recommend macOS for your convenience.
 
+## Install
+
+```
+npm install -g bagbak
+```
+
 ## Usage
 
 bagbak [bundle id or name]
