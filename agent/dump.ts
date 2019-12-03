@@ -75,8 +75,13 @@ export function warmup(): void {
   pError.writePointer(NULL)
   const files = mgr.contentsOfDirectoryAtPath_error_(path, pError)
   const err = pError.readPointer()
-  if (!err.isNull())
+  if (!err.isNull()) {
+    const errObj = new ObjC.Object(err)
+    const NSFileReadNoSuchFileError = 260
+    if (errObj.code().valueOf() === NSFileReadNoSuchFileError)
+      return
     return void console.error(new ObjC.Object(err))
+  }
   
   const max = files.count()
   for (let i = 0; i < max; i++) {
