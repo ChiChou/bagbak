@@ -87,7 +87,8 @@ export function warmup(): void {
   for (let i = 0; i < max; i++) {
     const name = files.objectAtIndex_(i)
     const bundle = NSBundle.bundleWithPath_(path.stringByAppendingPathComponent_(name))
-    bundle.load()
+    if (bundle)
+      bundle.load()
   }
 }
 
