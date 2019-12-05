@@ -5,11 +5,6 @@ import { dump, prepare, base } from './dump';
 import { skipPkdValidationFor, jetsam } from './pkd';
 import { launchAll, plugins } from './pluginkit';
 
-// Process.setExceptionHandler(ex => {
-//   console.error('Process crash:')
-//   console.error(ex)
-// });
-
 rpc.exports = {
   dump,
   prepare,
