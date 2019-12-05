@@ -42,7 +42,6 @@ bagbak [bundle id or name]
    -h, --help             output usage information
 ```
 
-Currently it does not copy anything other than decrypted executables. For a full repackable ipa, you need to manually fetch those files via SSH.
 
 ## 捐助
 
