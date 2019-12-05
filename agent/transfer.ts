@@ -1,5 +1,4 @@
 import { createReadStream, statSync } from "fs";
-import { relativeTo } from "./path";
 
 function send2(payload: any, data?: ArrayBuffer | number[] | null | undefined) {
   send(payload, data);
