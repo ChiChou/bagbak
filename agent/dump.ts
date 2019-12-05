@@ -3,6 +3,9 @@ import { normalize } from './path';
 
 type EncryptInfoTuple = [NativePointer, number, number, number, number];
 
+interface ISet {
+  [key: string]: boolean;
+}
 
 const ctx: Context = {};
 const EncryptInfoTuple = ['pointer', 'uint32', 'uint32', 'uint32', 'uint32'];
@@ -31,8 +34,10 @@ export async function dump() {
   freeze();
 
   const bundle = base();
+  const downloaded: ISet = {};
   for (let mod of Process.enumerateModules()) {
-    const filename = normalize(mod.path)
+    const filename = normalize(mod.path);
+    downloaded[filename] = true;
     if (!normalize(filename).startsWith(bundle))
       continue;
 
@@ -47,7 +52,6 @@ export async function dump() {
     // skip fat header
     const fatOffset = Process.findRangeByAddress(mod.base)!.file!.offset;
 
-    // todo: filename argument
     // dump decrypted
     const session = memcpy(mod.base.add(offset), size);
     send({ subject: 'patch', offset: fatOffset + offset, blob: session, filename });
@@ -57,8 +61,30 @@ export async function dump() {
   }
 
   wakeup();
+  await pull(bundle, downloaded);
+
   beep();
   return 0;
+}
+
+async function pull(bundle:string, downloaded: ISet) {
+  const manager = ObjC.classes.NSFileManager.defaultManager();
+  const enumerator = manager.enumeratorAtPath_(bundle);
+  const pIsDir = Memory.alloc(Process.pointerSize);
+  const base = ObjC.classes.NSString.alloc().initWithString_(bundle);
+
+  let path: string;
+  while ((path = enumerator.nextObject())) { 
+    const fullname = normalize(base.stringByAppendingPathComponent_(path));
+    if (downloaded[fullname])
+      continue;
+
+    pIsDir.writePointer(NULL);
+    manager.fileExistsAtPath_isDirectory_(fullname, pIsDir);
+    if (pIsDir.readPointer().isNull()) {
+      await download(fullname);
+    }
+  }
 }
 
 export function prepare(c: string) {
@@ -82,7 +108,7 @@ export function warmup(): void {
       return
     return void console.error(new ObjC.Object(err))
   }
-  
+
   const max = files.count()
   for (let i = 0; i < max; i++) {
     const name = files.objectAtIndex_(i)

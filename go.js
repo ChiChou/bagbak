@@ -371,9 +371,7 @@ async function main() {
     await session.detach()
     // await device.dev.kill(pid)
 
-    console.log(`
-For now, this tool only fetch decrypted executable binaries without other resources.
-To make a full reinstallable *.ipa, you need to manually fetch those files (e.g. via SSH).`)
+    
     return
   }
 
