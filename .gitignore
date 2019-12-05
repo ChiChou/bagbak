@@ -1,6 +1,7 @@
 .vscode/
 .ccls-cache/
 dump/
+output/
 
 # Logs
 logs
