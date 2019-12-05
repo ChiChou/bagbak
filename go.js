@@ -236,7 +236,7 @@ function detached(reason, crash) {
 }
 
 async function dump(dev, session, opt) {
-  const output = opt.output || 'dump'
+  const { output } = opt
   await mkdirp(output)
 
   const parent = path.join(output, opt.app, 'Payload')
@@ -328,7 +328,7 @@ async function main() {
     .option('-l, --list', 'list apps')
     .option('-h, --host <host>', 'hostname')
     .option('-u, --uuid <uuid>', 'uuid of USB device')
-    .option('-o, --output <output>', 'output directory')
+    .option('-o, --output <output>', 'output directory', 'dump')
     .option('-f, --override', 'override existing')
     .usage('[bundle id or name]')
 
@@ -371,7 +371,28 @@ async function main() {
     await session.detach()
     // await device.dev.kill(pid)
 
-    
+    console.log('trying to create zip archive')
+    {
+      const { spawn } = require('child_process')
+      const cwd = path.join(program.output, app)
+      let child
+      try {
+        child = spawn('zip', ['-r', `../${app}.ipa`, 'Payload'], { stdio: 'inherit', cwd: cwd })
+      } catch (ex) {
+        if (ex.errno == 'ENOENT') {
+          console.warn('zip command not found in the PATH')
+          console.info(`If you need an ipa, pack ${cwd}/Payload in zip archive`)
+        }
+        throw ex
+      }
+  
+      child.on('close', () => { console.log('close') })
+      await new Promise((resolve, reject) =>
+        child.on('close', (code) => code === 0 ? resolve() : reject(code)))
+      
+      console.log(`archive: ${cwd}.ipa`)
+    }
+
     return
   }
 
