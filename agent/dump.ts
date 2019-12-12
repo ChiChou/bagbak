@@ -73,8 +73,13 @@ async function pull(bundle:string, downloaded: ISet) {
   const pIsDir = Memory.alloc(Process.pointerSize);
   const base = ObjC.classes.NSString.alloc().initWithString_(bundle);
 
+  const skip = /\bSC\_Info\/((.+\.s(inf|up[fpx]))|Manifest\.plist)$/;
+
   let path: string;
-  while ((path = enumerator.nextObject())) { 
+  while ((path = enumerator.nextObject())) {
+    if (skip.exec(path.toString()))
+      continue;
+
     const fullname = normalize(base.stringByAppendingPathComponent_(path));
     if (downloaded[fullname])
       continue;
@@ -82,7 +87,7 @@ async function pull(bundle:string, downloaded: ISet) {
     pIsDir.writePointer(NULL);
     manager.fileExistsAtPath_isDirectory_(fullname, pIsDir);
     if (pIsDir.readPointer().isNull()) {
-      await download(fullname);
+        await download(fullname);
     }
   }
 }
