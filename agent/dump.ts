@@ -37,7 +37,6 @@ export async function dump() {
   const downloaded: ISet = {};
   for (let mod of Process.enumerateModules()) {
     const filename = normalize(mod.path);
-    downloaded[filename] = true;
     if (!normalize(filename).startsWith(bundle))
       continue;
 
@@ -48,6 +47,7 @@ export async function dump() {
       continue;
 
     await download(filename);
+    downloaded[filename] = true;
 
     // skip fat header
     const fatOffset = Process.findRangeByAddress(mod.base)!.file!.offset;
