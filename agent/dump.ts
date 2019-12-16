@@ -1,5 +1,6 @@
 import { memcpy, download } from './transfer';
 import { normalize } from './path';
+import { freeze, wakeup } from './threads';
 
 type EncryptInfoTuple = [NativePointer, number, number, number, number];
 
@@ -67,7 +68,7 @@ export async function dump() {
   return 0;
 }
 
-async function pull(bundle:string, downloaded: ISet) {
+async function pull(bundle: string, downloaded: ISet) {
   const manager = ObjC.classes.NSFileManager.defaultManager();
   const enumerator = manager.enumeratorAtPath_(bundle);
   const pIsDir = Memory.alloc(Process.pointerSize);
@@ -87,7 +88,7 @@ async function pull(bundle:string, downloaded: ISet) {
     pIsDir.writePointer(NULL);
     manager.fileExistsAtPath_isDirectory_(fullname, pIsDir);
     if (pIsDir.readPointer().isNull()) {
-        await download(fullname);
+      await download(fullname);
     }
   }
 }
@@ -123,15 +124,3 @@ export function warmup(): void {
   }
 }
 
-const suspend = new NativeFunction(Module.findExportByName('libsystem_kernel.dylib', 'thread_suspend')!, 'pointer', ['uint']);
-const resume = new NativeFunction(Module.findExportByName('libsystem_kernel.dylib', 'thread_resume')!, 'pointer', ['uint']);
-
-export function freeze() {
-  for (let { id } of Process.enumerateThreads())
-    suspend(id)
-}
-
-export function wakeup() {
-  for (let { id } of Process.enumerateThreads())
-    resume(id)
-}

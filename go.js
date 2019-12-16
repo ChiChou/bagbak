@@ -395,11 +395,11 @@ async function main() {
         throw ex
       }
   
-      child.on('close', () => { console.log('close') })
       await new Promise((resolve, reject) =>
         child.on('close', (code) => code === 0 ? resolve() : reject(code)))
       
       console.log(`archive: ${cwd}.ipa`)
+      console.log(`contents: ${chalk.green(cwd)}`)
     }
 
     return
