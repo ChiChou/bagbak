@@ -61,22 +61,31 @@ class File {
   received = 0
   name = ''
   fd = null
+  bar = null
+  verbose = false
 
   constructor(session, size, fd) {
     this.session = session
     this.size = size
     this.fd = fd
-    this.bar = new progress.SingleBar(BAR_OPTS)
-    this.bar.start(size, 0)
+
+    if (size > 4 * 1024 * 1024) {
+      this.bar = new progress.SingleBar(BAR_OPTS)
+      this.bar.start(size, 0)
+      this.verbose = true
+    }
+
   }
 
   progress(length) {
     this.received += length
-    this.bar.update(this.received, toBarPayload(this))
+    if (this.verbose)
+      this.bar.update(this.received, toBarPayload(this))
   }
 
   done() {
-    this.bar.stop()
+    if (this.verbose)
+      this.bar.stop()
     this.fd.close()
   }
 }
