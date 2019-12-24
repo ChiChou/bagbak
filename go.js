@@ -340,7 +340,7 @@ async function main() {
     .option('-o, --output <output>', 'output directory', 'dump')
     .option('-f, --override', 'override existing')
     .option('-e, --executable-only', 'dump executables only')
-    .option('-z, --zip', 'create zip archive')
+    .option('-z, --zip', 'create zip archive (ipa)')
     .usage('[bundle id or name]')
 
   program.parse(process.argv)
