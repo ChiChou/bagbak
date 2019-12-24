@@ -40,6 +40,8 @@ bagbak [bundle id or name]
    -u, --uuid <uuid>      uuid of USB device
    -o, --output <output>  output directory
    -f, --override         override existing
+   -e, --executable-only  dump executables only
+   -z, --zip              create zip archive (ipa)
    -h, --help             output usage information
 ```
 
