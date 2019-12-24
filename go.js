@@ -279,7 +279,7 @@ async function dump(dev, session, opt) {
   console.log('dump main app')
 
   await script.exports.prepare(c)
-  await script.exports.dump()
+  await script.exports.dump(opt)
 
   console.log('patch PluginKit validation')
   const pkdSession = await dev.attach('pkd')
@@ -305,7 +305,7 @@ async function dump(dev, session, opt) {
       const childHandler = new Handler(cwd, root)
       childHandler.connect(pluginScript)
 
-      await pluginScript.exports.dump()
+      await pluginScript.exports.dump(opt)
       await pluginScript.unload()
       await pluginSession.detach()
       await dev.kill(pid)
@@ -339,6 +339,8 @@ async function main() {
     .option('-u, --uuid <uuid>', 'uuid of USB device')
     .option('-o, --output <output>', 'output directory', 'dump')
     .option('-f, --override', 'override existing')
+    .option('-e, --executable-only', 'dump executables only')
+    .option('-z, --zip', 'create zip archive')
     .usage('[bundle id or name]')
 
   program.parse(process.argv)
@@ -380,8 +382,8 @@ async function main() {
     await session.detach()
     // await device.dev.kill(pid)
 
-    console.log('trying to create zip archive')
-    {
+    if (program.zip) {
+      console.log('trying to create zip archive')
       const { spawn } = require('child_process')
       const cwd = path.join(program.output, app)
       let child

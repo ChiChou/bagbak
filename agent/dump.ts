@@ -8,6 +8,10 @@ interface ISet {
   [key: string]: boolean;
 }
 
+interface Option {
+  executableOnly?: boolean
+}
+
 const ctx: Context = {};
 const EncryptInfoTuple = ['pointer', 'uint32', 'uint32', 'uint32', 'uint32'];
 
@@ -25,7 +29,7 @@ export function base() {
   return normalize(ObjC.classes.NSBundle.mainBundle().bundlePath().toString());
 }
 
-export async function dump() {
+export async function dump(opt: Option = {}) {
   // A song of ice & fire
 
   // load all frameworks
@@ -62,10 +66,13 @@ export async function dump() {
   }
 
   wakeup();
-  await pull(bundle, downloaded);
+
+  if (!opt.executableOnly)
+    await pull(bundle, downloaded);
 
   beep();
   return 0;
+
 }
 
 async function pull(bundle: string, downloaded: ISet) {
