@@ -335,7 +335,7 @@ async function main() {
   program
     .name('bagbak')
     .option('-l, --list', 'list apps')
-    .option('-h, --host <host>', 'hostname')
+    .option('-H, --host <host>', 'hostname')
     .option('-u, --uuid <uuid>', 'uuid of USB device')
     .option('-o, --output <output>', 'output directory', 'dump')
     .option('-f, --override', 'override existing')
