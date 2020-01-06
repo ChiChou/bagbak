@@ -163,7 +163,7 @@ class Handler {
 
   async patch({ offset, blob, size, filename }) {
     const output = await this.output(filename)
-    const fd = await fs.open(output, 'a')
+    const fd = await fs.open(output, 'r+')
     let buf = null
     if (blob) {
       buf = this.blob(blob).done()
