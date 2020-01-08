@@ -368,6 +368,7 @@ async function main() {
       delete app.smallIcon
       delete app.largeIcon
     }
+    list.sort((a, b) => (a.name.toLowerCase() > b.name.toLowerCase()) ? 1 : -1)
     console.table(list)
     return
   }
