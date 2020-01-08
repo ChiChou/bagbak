@@ -36,7 +36,7 @@ bagbak [bundle id or name]
 ```
  Options:
    -l, --list             list apps
-   -h, --host <host>      hostname
+   -H, --host <host>      hostname
    -u, --uuid <uuid>      uuid of USB device
    -o, --output <output>  output directory
    -f, --override         override existing
