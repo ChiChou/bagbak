@@ -21,7 +21,10 @@ That's all. No SSH required.
 
 That's all. Npm can handle all dependencies.
 
-It's known that USB device discovery on Windows is too slow that it always reach the timeout. In theory on Linux it should work. We recommend macOS for your convenience.
+### Windows Compatibility
+
+* Before `frida@12.5.5` it was unable to connect device via USB (ref: [12.5 release note](https://frida.re/news/2019/05/15/frida-12-5-released/)). Please use up-to-date frida to overcome this;
+* Filesystem of iOS differs from Windows. If you are running bagbak on Windows, **some of the file attributes (e.g., executable bit) will be lost**, thus the repacked ipa may not be able to reinstall on your phone. But it does not matter if you only indend to do static analysis.
 
 ## Install
 
