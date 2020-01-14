@@ -185,11 +185,16 @@ class Handler {
     this.script.post({ type: 'ack' })
   }
 
+  truncate(str) {
+    const MAX = 80
+    const len = str.length - MAX
+    return len > 0 ? `...${str.substr(len)}` : str
+  }
+
   async download({ event, session, stat, filename }, data) {
     if (event === 'begin') {
-      console.log(chalk.bold('download'), chalk.greenBright(path.basename(filename)))
+      console.log(chalk.bold('download'), chalk.greenBright(this.truncate(filename)))
       const output = await this.output(filename)
-
       const fd = await fs.open(output, 'w', stat.mode)
       const file = new File(session, stat.size, fd)
       this.files.set(session, file)
@@ -331,7 +336,7 @@ async function dump(dev, session, opt) {
   await pkdScript.unload()
   await pkdSession.detach()
 
-  console.log('Congrats!')
+  console.log(chalk.green('Congrats!'))
   console.log('open', chalk.greenBright(parent))
 }
 
