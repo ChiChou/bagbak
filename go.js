@@ -5,6 +5,7 @@ const chalk = require('chalk')
 
 const fs = require('fs').promises
 const path = require('path')
+const os = require('os')
 
 const mkdirp = require('./lib/mkdirp')
 
@@ -102,6 +103,7 @@ class Handler {
     this.root = root
     this.cwd = cwd
     this.session = null
+    this.misc = {}
   }
 
   /**
@@ -191,7 +193,11 @@ class Handler {
       const fd = await fs.open(output, 'w', stat.mode)
       const file = new File(session, stat.size, fd)
       this.files.set(session, file)
-      await fs.utimes(output, stat.atimeMs, stat.mtimeMs)
+      try {
+        await fs.utimes(output, stat.atimeMs, stat.mtimeMs)
+      } catch(e) {
+        this.misc.warnAboutNTFS = e.code === 'EINVAL' && os.platform() === 'win32'
+      }
       this.ack()
     } else if (event === 'data') {
       const file = this.file(session)
@@ -247,7 +253,6 @@ function detached(reason, crash) {
 async function dump(dev, session, opt) {
   const { output } = opt
   await mkdirp(output)
-
   const parent = path.join(output, opt.app, 'Payload')
 
   try {
@@ -313,6 +318,11 @@ async function dump(dev, session, opt) {
   } catch (ex) {
     console.warn(chalk.redBright(`unable to dump plugins ${ex}`))
     console.warn(ex)
+  }
+
+  if (handler.misc.warnAboutNTFS) {
+    console.warn(chalk.yellow(`WARNING: Failed to update file timestamps. This is probably because you're 
+      on Windows and using NTFS, which is incompatible with some file attributes.`))
   }
 
   await script.unload()
