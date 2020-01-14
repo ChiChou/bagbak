@@ -215,7 +215,7 @@ class Handler {
   dispatcher({ type, payload }, data) {
     if (type === 'send') {
       const { subject } = payload;
-      if (typeof this[subject] === 'function') {
+      if (['memcpy', 'download', 'patch'].includes(subject)) {
         // don't wait
         // console.log(subject)
         this[subject].call(this, payload, data)
