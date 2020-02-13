@@ -55,3 +55,8 @@ bagbak [bundle id or name]
 
 <img src="images/alipay.jpg" width="160">
 <img src="images/wechat.jpg" width="150">
+
+
+## 国内用户 frida 安装失败问题
+
+请参考 [使用国内镜像加速安装](https://github.com/chaitin/passionfruit/wiki/%E4%BD%BF%E7%94%A8%E5%9B%BD%E5%86%85%E9%95%9C%E5%83%8F%E5%8A%A0%E9%80%9F%E5%AE%89%E8%A3%85#%E9%A2%84%E7%BC%96%E8%AF%91%E5%8C%85%E5%A4%B1%E8%B4%A5)
