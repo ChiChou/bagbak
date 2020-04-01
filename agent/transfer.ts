@@ -1,6 +1,6 @@
 import { createReadStream, statSync } from "fs";
 
-function send2(payload: any, data?: ArrayBuffer | number[] | null | undefined) {
+function send2(payload: any, data?: ArrayBuffer | number[] | null) {
   send(payload, data);
   recv('ack', () => { }).wait();
 }
@@ -72,7 +72,7 @@ export async function download(filename: string) {
 
   await new Promise((resolve, reject) =>
     stream
-      .on('data', chunk => {
+      .on('data', (chunk: ArrayBuffer) => {
         send2({
           subject,
           event: 'data',
