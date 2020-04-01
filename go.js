@@ -291,38 +291,43 @@ async function dump(dev, session, opt) {
   await script.exports.prepare(c)
   await script.exports.dump(opt)
 
-  console.log('patch PluginKit validation')
-  const pkdSession = await dev.attach('pkd')
-  const pkdScript = await pkdSession.createScript(js)
-  await pkdScript.load()
-  await pkdScript.exports.skipPkdValidationFor(session.pid)
-  pkdSession.detached.connect(detached)
-
-  try {
-    console.log('dump extensions')
-    const pids = await script.exports.launchAll()
-    for (let pid of pids) {
-      if (await pkdScript.exports.jetsam(pid) !== 0) {
-        throw new Error(`unable to unchain ${pid}`)
+  if (opt.extension) {
+    console.log('patch PluginKit validation')
+    const pkdSession = await dev.attach('pkd')
+    const pkdScript = await pkdSession.createScript(js)
+    await pkdScript.load()
+    await pkdScript.exports.skipPkdValidationFor(session.pid)
+    pkdSession.detached.connect(detached)
+    
+    try {
+      console.log('dump extensions')
+      const pids = await script.exports.launchAll()
+      for (let pid of pids) {
+        if (await pkdScript.exports.jetsam(pid) !== 0) {
+          throw new Error(`unable to unchain ${pid}`)
+        }
+        
+        const pluginSession = await dev.attach(pid)
+        const pluginScript = await pluginSession.createScript(js)
+        pluginSession.detached.connect(detached)
+        
+        await pluginScript.load()
+        await pluginScript.exports.prepare(c)
+        const childHandler = new Handler(cwd, root)
+        childHandler.connect(pluginScript)
+        
+        await pluginScript.exports.dump(opt)
+        await pluginScript.unload()
+        await pluginSession.detach()
+        await dev.kill(pid)
       }
-
-      const pluginSession = await dev.attach(pid)
-      const pluginScript = await pluginSession.createScript(js)
-      pluginSession.detached.connect(detached)
-
-      await pluginScript.load()
-      await pluginScript.exports.prepare(c)
-      const childHandler = new Handler(cwd, root)
-      childHandler.connect(pluginScript)
-
-      await pluginScript.exports.dump(opt)
-      await pluginScript.unload()
-      await pluginSession.detach()
-      await dev.kill(pid)
+      await pkdScript.unload()
+      await pkdSession.detach()
+    } catch (ex) {
+      console.warn(chalk.redBright(`unable to dump plugins ${ex}`))
+      console.warn(`Please file a bug to https://github.com/ChiChou/bagbak/issues`)
+      console.warn(ex)
     }
-  } catch (ex) {
-    console.warn(chalk.redBright(`unable to dump plugins ${ex}`))
-    console.warn(ex)
   }
 
   if (handler.misc.warnAboutNTFS) {
@@ -332,9 +337,6 @@ async function dump(dev, session, opt) {
 
   await script.unload()
   await session.detach()
-
-  await pkdScript.unload()
-  await pkdSession.detach()
 
   console.log(chalk.green('Congrats!'))
   console.log('open', chalk.greenBright(parent))
@@ -356,6 +358,7 @@ async function main() {
     .option('-f, --override', 'override existing')
     .option('-e, --executable-only', 'dump executables only')
     .option('-z, --zip', 'create zip archive (ipa)')
+    .option('-n, --no-extension', 'do not dump extensions')
     .usage('[bundle id or name]')
 
   program.parse(process.argv)
@@ -392,7 +395,7 @@ async function main() {
     const app = program.args[0]
     const opt = Object.assign({ app }, program)
     const session = await device.run(app)
-    const { pid } = session
+    // const { pid } = session
     await dump(device.dev, session, opt)
 
     await session.detach()
@@ -406,7 +409,7 @@ async function main() {
       try {
         child = spawn('zip', ['-r', `../${app}.ipa`, 'Payload'], { stdio: 'inherit', cwd: cwd })
       } catch (ex) {
-        if (ex.errno == 'ENOENT') {
+        if (ex.errno === 'ENOENT') {
           console.warn('zip command not found in the PATH')
           console.info(`If you need an ipa, pack ${cwd}/Payload in zip archive`)
         }
