@@ -8,6 +8,7 @@ const path = require('path')
 const os = require('os')
 
 const mkdirp = require('./lib/mkdirp')
+const zip = require('./lib/zip')
 
 const BAR_OPTS = {
   format: chalk.cyan('{bar}') +
@@ -402,24 +403,20 @@ async function main() {
     // await device.dev.kill(pid)
 
     if (program.zip) {
-      console.log('trying to create zip archive')
-      const { spawn } = require('child_process')
+      const tmp = path.join('..', app + '.zip')
       const cwd = path.join(program.output, app)
-      let child
       try {
-        child = spawn('zip', ['-r', `../${app}.ipa`, 'Payload'], { stdio: 'inherit', cwd: cwd })
-      } catch (ex) {
-        if (ex.errno === 'ENOENT') {
-          console.warn('zip command not found in the PATH')
-          console.info(`If you need an ipa, pack ${cwd}/Payload in zip archive`)
-        }
-        throw ex
+        await zip(tmp, 'Payload', cwd)
+      } catch(e) {
+        console.error('failed to create zip archive')
+        console.error(e)
+        return
       }
-  
-      await new Promise((resolve, reject) =>
-        child.on('close', (code) => code === 0 ? resolve() : reject(code)))
-      
-      console.log(`archive: ${cwd}.ipa`)
+
+      const ipa = path.join(program.output, app + '.ipa')
+      await fs.rename(path.join(program.output, app + '.zip'), ipa)
+
+      console.log(`archive: ${chalk.blue(ipa)}`)
       console.log(`contents: ${chalk.green(cwd)}`)
     }
 
