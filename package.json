@@ -25,10 +25,10 @@
     "frida-compile": "^9.3.0"
   },
   "dependencies": {
-    "chalk": "^3.0.0",
+    "chalk": "^4.0.0",
     "cli-progress": "^3.8.2",
-    "commander": "^4.1.1",
-    "frida": "^12.8.20"
+    "commander": "^5.1.0",
+    "frida": "^12.9.4"
   },
   "repository": {
     "type": "git",
