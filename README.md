@@ -48,6 +48,9 @@ bagbak [bundle id or name]
    -h, --help             output usage information
 ```
 
+## Release Note
+
+v1.6.0: fix [a long standing bug](https://github.com/ChiChou/bagbak/issues/46) that may cause serialization failure
 
 ## 捐助
 
