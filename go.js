@@ -183,7 +183,7 @@ class Handler {
   }
 
   ack() {
-    this.script.post({ type: 'ack' })
+    this.script.post({ type: 'ack' }, Buffer.allocUnsafe(1))
   }
 
   truncate(str) {
@@ -201,7 +201,7 @@ class Handler {
       this.files.set(session, file)
       try {
         await fs.utimes(output, stat.atimeMs, stat.mtimeMs)
-      } catch(e) {
+      } catch (e) {
         this.misc.warnAboutNTFS = e.code === 'EINVAL' && os.platform() === 'win32'
       }
       this.ack()
@@ -289,8 +289,12 @@ async function dump(dev, session, opt) {
 
   console.log('dump main app')
 
+  const sanitized = {
+    executableOnly: opt.executableOnly 
+  }
+
   await script.exports.prepare(c)
-  await script.exports.dump(opt)
+  await script.exports.dump(sanitized)
 
   if (opt.extension) {
     console.log('patch PluginKit validation')
@@ -299,7 +303,7 @@ async function dump(dev, session, opt) {
     await pkdScript.load()
     await pkdScript.exports.skipPkdValidationFor(session.pid)
     pkdSession.detached.connect(detached)
-    
+
     try {
       console.log('dump extensions')
       const pids = await script.exports.launchAll()
@@ -307,17 +311,17 @@ async function dump(dev, session, opt) {
         if (await pkdScript.exports.jetsam(pid) !== 0) {
           throw new Error(`unable to unchain ${pid}`)
         }
-        
+
         const pluginSession = await dev.attach(pid)
         const pluginScript = await pluginSession.createScript(js)
         pluginSession.detached.connect(detached)
-        
+
         await pluginScript.load()
         await pluginScript.exports.prepare(c)
         const childHandler = new Handler(cwd, root)
         childHandler.connect(pluginScript)
-        
-        await pluginScript.exports.dump(opt)
+
+        await pluginScript.exports.dump(sanitized)
         await pluginScript.unload()
         await pluginSession.detach()
         await dev.kill(pid)
@@ -407,7 +411,7 @@ async function main() {
       const cwd = path.join(program.output, app)
       try {
         await zip(tmp, 'Payload', cwd)
-      } catch(e) {
+      } catch (e) {
         console.error('failed to create zip archive')
         console.error(e)
         return

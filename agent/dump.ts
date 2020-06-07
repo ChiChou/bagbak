@@ -30,8 +30,6 @@ export function base() {
 }
 
 export async function dump(opt: Option = {}) {
-  // A song of ice & fire
-
   // load all frameworks
   warmup();
 
