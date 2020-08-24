@@ -56,6 +56,8 @@ v1.6.0: fix [a long standing bug](https://github.com/ChiChou/bagbak/issues/46) t
 
 如果觉得项目有帮助，可以通过支付宝和其他渠道打赏，金额随意
 
+[Become a Patreon](http://patreon.com/codecolorist) Make donation
+
 <img src="images/alipay.jpg" width="160">
 <img src="images/wechat.jpg" width="150">
 
