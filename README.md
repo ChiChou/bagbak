@@ -16,7 +16,7 @@ That's all. No SSH required.
 
 ### On desktop
 
-* [node.js](https://nodejs.org/) Latest LTS (Long Term Support)
+* [node.js](https://nodejs.org/) 14.x
 * `zip` command (optional). We'll generate an ipa archive when this command is avaliable
 
 That's all. Npm can handle all dependencies.
