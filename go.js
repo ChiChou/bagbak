@@ -308,6 +308,8 @@ async function dump(dev, session, opt) {
       console.log('dump extensions')
       const pids = await script.exports.launchAll()
       for (let pid of pids) {
+        if (pid === 0) continue
+
         if (await pkdScript.exports.jetsam(pid) !== 0) {
           throw new Error(`unable to unchain ${pid}`)
         }
@@ -321,7 +323,7 @@ async function dump(dev, session, opt) {
         const childHandler = new Handler(cwd, root)
         childHandler.connect(pluginScript)
 
-        await pluginScript.exports.dump(sanitized)
+        await pluginScript.exports.dump({ executableOnly: true })
         await pluginScript.unload()
         await pluginSession.detach()
         await dev.kill(pid)

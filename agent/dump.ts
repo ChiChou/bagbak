@@ -40,7 +40,7 @@ export async function dump(opt: Option = {}) {
   const downloaded: ISet = {};
   for (let mod of Process.enumerateModules()) {
     const filename = normalize(mod.path);
-    if (!normalize(filename).startsWith(bundle))
+    if (!filename.startsWith(bundle))
       continue;
 
     const info = ctx.findEncyptInfo!(mod.base) as EncryptInfoTuple;

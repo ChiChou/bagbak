@@ -9,7 +9,7 @@ export function relativeTo(base: string, full: string) {
   return b.slice(i).join(SEP);
 }
 
-export function normalize(path: string) {
+export function normalize(path: string): string {
   return ObjC.classes.NSString
     .stringWithString_(path).stringByStandardizingPath().toString();
 }
