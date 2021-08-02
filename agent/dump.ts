@@ -101,7 +101,7 @@ async function pull(bundle: string, downloaded: ISet) {
 export function prepare(c: string) {
   const cm = new CModule(c);
   ctx.cm = cm
-  ctx.findEncyptInfo = new NativeFunction(cm['find_encryption_info'], EncryptInfoTuple, ['pointer']);
+  ctx.findEncyptInfo = new NativeFunction(cm['find_encryption_info'], ['pointer', 'uint32', 'uint32', 'uint32', 'uint32'], ['pointer']);
 }
 
 export function warmup(): void {

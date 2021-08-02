@@ -1,5 +1,5 @@
 interface ThreadsNamespace {
-  [key: string]: NativeFunction;
+  [key: string]: NativeFunction<NativePointer, [number]>;
 }
 
 const threads: ThreadsNamespace = {}
