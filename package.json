@@ -20,15 +20,15 @@
     "/lib/"
   ],
   "devDependencies": {
-    "@types/frida-gum": "^15.3.0",
-    "@types/node": "^13.13.29",
-    "frida-compile": "^10.0.0"
+    "@types/frida-gum": "^17.1.0",
+    "@types/node": "^16.4.10",
+    "frida-compile": "^10.2.4"
   },
   "dependencies": {
     "chalk": "^4.0.0",
     "cli-progress": "^3.8.2",
     "commander": "^5.1.0",
-    "frida": "^14.0.5"
+    "frida": "^15.0.13"
   },
   "repository": {
     "type": "git",

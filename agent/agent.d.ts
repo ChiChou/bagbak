@@ -7,7 +7,7 @@ interface Plugin {
 
 interface Context {
   cm?: CModule,
-  findEncyptInfo?: NativeFunction,
+  findEncyptInfo?: NativeFunction<[NativePointer, number, number, number, number], [NativePointer]>,
 }
 
 interface NSString {
