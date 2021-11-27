@@ -1,3 +1,13 @@
+**Deperecated in favor of [FoulDecrypt](https://github.com/NyaMisty/fouldecrypt)**
+
+Do you know that you can [use VSCode to decrypt apps](https://github.com/ChiChou/vscode-frida)?
+
+![](images/vscode.png)
+
+My [VSCode extension](https://marketplace.visualstudio.com/items?itemName=CodeColorist.vscode-frida) provides a better GUI experience and much more stable success rate. Since all frida based app decryptors have to run the app first, it's possible for the app to detect jailbreak environment then abort. FoulDecrypt directly maps the code without execution, leaving no chance for the the anti-debug techniques.
+
+----
+
 # bagbak
 
 Yet another frida based App decryptor. Requires jailbroken iOS device and [frida.re](https://www.frida.re/)
