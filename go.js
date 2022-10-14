@@ -233,7 +233,7 @@ class Handler {
         this[subject].call(this, payload, data)
       }
     } else if (type === 'error') {
-      session.detach()
+      this.session.detach()
     } else {
       console.log('UNKNOWN', type, payload, data)
     }
