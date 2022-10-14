@@ -1,6 +1,6 @@
 {
   "name": "bagbak",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Dump iOS app from a jailbroken device, based on frida.re",
   "main": "go.js",
   "scripts": {
