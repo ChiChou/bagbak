@@ -1,13 +1,23 @@
-import { createReadStream, statSync } from "fs";
+import { statSync } from "fs";
+
+const open = new NativeFunction(Module.findExportByName(null, 'open')!, 'int', ['pointer', 'int']);
+const close = new NativeFunction(Module.findExportByName(null, 'close')!, 'void', ['int']);
+const read = new NativeFunction(Module.findExportByName(null, 'read')!, 'ssize_t', ['int', 'pointer', 'size_t']);
+
+const O_RDONLY = 0;
+
+const highWaterMark = 4 * 1024 * 1024;
 
 function send2(payload: any, data?: ArrayBuffer | number[] | null) {
   send(payload, data);
   recv('ack', () => { }).wait();
 }
 
+const uuid = () => Math.random().toString(36).substring(2)
+
 export function memcpy(address: NativePointer, size: number) {
-  const session = Math.random().toString(36).substr(2);
-  const highWaterMark = 4 * 1024 * 1024;
+  const session = uuid();
+  
   const subject = 'memcpy';
 
   send2({
@@ -51,11 +61,14 @@ export function memcpy(address: NativePointer, size: number) {
 }
 
 export async function download(filename: string) {
-  const session = Math.random().toString(36).substr(2);
-  const highWaterMark = 4 * 1024 * 1024;
+  const session = uuid();
   const subject = 'download';
   const { size, atimeMs, mtimeMs, mode } = statSync(filename);
-  const stream = createReadStream(filename, { highWaterMark });
+
+  const buf = Memory.alloc(highWaterMark);
+  const fd = open(Memory.allocUtf8String(filename), O_RDONLY);
+
+  if (fd < 0) throw new Error(`Unable to open file ${filename}`);
 
   send2({
     subject,
@@ -70,17 +83,16 @@ export async function download(filename: string) {
     },
   });
 
-  await new Promise((resolve, reject) =>
-    stream
-      .on('data', (chunk: ArrayBuffer) => {
-        send2({
-          subject,
-          event: 'data',
-          session,
-        }, chunk);
-      })
-      .on('end', resolve)
-      .on('error', reject));
+  while (true) {
+    const size = read(fd, buf, highWaterMark);
+    if (size.equals(0)) break;
+    const chunk = buf.readByteArray(size.toNumber());
+    send2({
+      subject,
+      event: 'data',
+      session,
+    }, chunk);
+  }
 
   send({
     subject,
@@ -88,4 +100,5 @@ export async function download(filename: string) {
     session,
   });
 
+  close(fd);
 }
