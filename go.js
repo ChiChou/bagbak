@@ -298,7 +298,11 @@ async function dump(dev, session, opt) {
 
   if (opt.extension) {
     console.log('patch PluginKit validation')
-    const pkdSession = await dev.attach('pkd')
+    const processList = await dev.enumerateProcesses()
+    const pkd = processList.find(p => p.name.endsWith('pkd'))
+    if (!pkd)
+      throw new Error('unable to find pkd process')
+    const pkdSession = await dev.attach(pkd.pid)
     const pkdScript = await pkdSession.createScript(js)
     await pkdScript.load()
     await pkdScript.exports.skipPkdValidationFor(session.pid)
