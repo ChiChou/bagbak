@@ -273,7 +273,7 @@ async function dump(dev, session, opt) {
   session.detached.connect(detached)
 
   const read = (...args) => fs.readFile(path.join(__dirname, ...args)).then(buf => buf.toString())
-  const js = await read('dist', 'agent.js')
+  const js = await read('agent', 'dist', 'agent.js')
 
   const script = await session.createScript(js)
   await script.load()
