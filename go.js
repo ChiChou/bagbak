@@ -274,7 +274,6 @@ async function dump(dev, session, opt) {
 
   const read = (...args) => fs.readFile(path.join(__dirname, ...args)).then(buf => buf.toString())
   const js = await read('dist', 'agent.js')
-  const c = await read('cmod', 'source.c')
 
   const script = await session.createScript(js)
   await script.load()
@@ -293,7 +292,6 @@ async function dump(dev, session, opt) {
     executableOnly: opt.executableOnly 
   }
 
-  await script.exports.prepare(c)
   await script.exports.dump(sanitized)
 
   if (opt.extension) {
@@ -319,7 +317,6 @@ async function dump(dev, session, opt) {
         pluginSession.detached.connect(detached)
 
         await pluginScript.load()
-        await pluginScript.exports.prepare(c)
         const childHandler = new Handler(cwd, root)
         childHandler.connect(pluginScript)
 

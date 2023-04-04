@@ -1,0 +1,19 @@
+{
+  "name": "bagbak-agent",
+  "version": "1.0.0",
+  "description": "Frida agent written in TypeScript",
+  "private": true,
+  "main": "agent/index.ts",
+  "scripts": {
+    "prepare": "npm run build",
+    "c": "node ../scripts/cmod.js",
+    "compile": "frida-compile src/index.ts -o dist/agent.js",
+    "build": "npm run c && npm run compile -- -c",
+    "watch": "npm run c && npm run compile -- -w"
+  },
+  "devDependencies": {
+    "@types/frida-gum": "^16.2.0",
+    "@types/node": "^14.14.10",
+    "frida-compile": "^10.0.0"
+  }
+}

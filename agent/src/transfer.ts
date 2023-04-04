@@ -66,7 +66,7 @@ export async function download(filename: string) {
   const { size, atimeMs, mtimeMs, mode } = statSync(filename);
 
   const buf = Memory.alloc(highWaterMark);
-  const fd = open(Memory.allocUtf8String(filename), O_RDONLY);
+  const fd = open(Memory.allocUtf8String(filename), O_RDONLY) as number;
 
   if (fd < 0) throw new Error(`Unable to open file ${filename}`);
 
@@ -84,9 +84,9 @@ export async function download(filename: string) {
   });
 
   while (true) {
-    const size = read(fd, buf, highWaterMark);
-    if (size.equals(0)) break;
-    const chunk = buf.readByteArray(size.toNumber());
+    const size = (read(fd, buf, highWaterMark) as Int64).toNumber();
+    if (size === 0) break;
+    const chunk = buf.readByteArray(size);
     send2({
       subject,
       event: 'data',

@@ -5,30 +5,20 @@
   "main": "go.js",
   "scripts": {
     "prepare": "npm run build",
-    "build": "frida-compile agent/index.ts -o dist/agent.js",
-    "watch": "npm run build -- -w"
+    "build": "npm --prefix agent run build",
+    "watch": "npm --prefix agent run watch",
+    "postinstall": "npm --prefix agent install"
   },
-  "author": "CodeColorist",
-  "license": "MIT",
-  "bin": {
-    "bagbak": "./go.js"
-  },
-  "files": [
-    "/dist/agent.js",
-    "/cmod/source.c",
-    "/go.js",
-    "/lib/"
-  ],
   "devDependencies": {
-    "@types/frida-gum": "^17.1.0",
-    "@types/node": "^16.4.10",
-    "frida-compile": "^10.2.4"
+    "@types/frida-gum": "^18.3.1",
+    "@types/node": "^18.15.11",
+    "frida-compile": "^10.0.0"
   },
   "dependencies": {
     "chalk": "^4.0.0",
     "cli-progress": "^3.8.2",
     "commander": "^5.1.0",
-    "frida": "^16.0.4",
+    "frida": "^16.0.11",
     "ssh2": "^1.11.0"
   },
   "repository": {

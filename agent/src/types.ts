@@ -1,24 +1,19 @@
-interface Plugin {
+export interface Plugin {
   path: string,
   version: number,
   id: string,
   executable: string,
 }
 
-interface Context {
-  cm?: CModule,
-  findEncyptInfo?: NativeFunction<[NativePointer, number, number, number, number], [NativePointer]>,
-}
-
-interface NSString {
+export interface NSString {
   UTF8String(): NativePointer,
 }
 
-interface NSDictionary {
+export interface NSDictionary {
   objectForKey_(key: string): any,
 }
 
-interface NSBundle {
+export interface NSBundle {
   bundleIdentifier(): NSString,
   bundlePath(): NSString,
   infoDictionary(): NSDictionary,

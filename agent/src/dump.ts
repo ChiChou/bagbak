@@ -1,6 +1,7 @@
 import { memcpy, download } from './transfer';
 import { normalize } from './path';
 import { freeze, wakeup } from './threads';
+import c from '../cmod';
 
 type EncryptInfoTuple = [NativePointer, number, number, number, number];
 
@@ -11,9 +12,6 @@ interface ISet {
 interface Option {
   executableOnly?: boolean
 }
-
-const ctx: Context = {};
-const EncryptInfoTuple = ['pointer', 'uint32', 'uint32', 'uint32', 'uint32'];
 
 function beep() {
   try {
@@ -43,7 +41,7 @@ export async function dump(opt: Option = {}) {
     if (!filename.startsWith(bundle))
       continue;
 
-    const info = ctx.findEncyptInfo!(mod.base) as EncryptInfoTuple;
+    const info = findEncyptInfo!(mod.base) as EncryptInfoTuple;
     const [ptr, offset, size, offsetOfCmd, sizeOfCmd] = info;
 
     if (ptr.isNull())
@@ -98,11 +96,8 @@ async function pull(bundle: string, downloaded: ISet) {
   }
 }
 
-export function prepare(c: string) {
-  const cm = new CModule(c);
-  ctx.cm = cm
-  ctx.findEncyptInfo = new NativeFunction(cm['find_encryption_info'], ['pointer', 'uint32', 'uint32', 'uint32', 'uint32'], ['pointer']);
-}
+const cm = new CModule(c);
+const findEncyptInfo = new NativeFunction(cm['find_encryption_info'], ['pointer', 'uint32', 'uint32', 'uint32', 'uint32'], ['pointer']);
 
 export function warmup(): void {
   const { NSFileManager, NSBundle } = ObjC.classes
