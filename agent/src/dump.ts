@@ -1,13 +1,12 @@
 import { memcpy, download } from './transfer';
 import { normalize } from './path';
 import { freeze, wakeup } from './threads';
-import c from '../cmod';
+
+const MH_MAGIC_64 = 0xfeedfacf;
+const LC_ENCRYPTION_INFO = 0x21;
+const LC_ENCRYPTION_INFO_64 = 0x2c;
 
 type EncryptInfoTuple = [NativePointer, number, number, number, number];
-
-interface ISet {
-  [key: string]: boolean;
-}
 
 interface Option {
   executableOnly?: boolean
@@ -27,6 +26,36 @@ export function base() {
   return normalize(ObjC.classes.NSBundle.mainBundle().bundlePath().toString());
 }
 
+function findCryptInfo(header: NativePointer) {
+  const magic = header.readU32();
+  if (magic !== MH_MAGIC_64) {
+    throw new Error(`Unsupported magic ${magic.toString(16)}`);
+  }
+
+  const ncmds = header.add(16).readU32();
+  const cmds = header.add(32);
+
+  let offsetOfCmd = 0;
+  let sizeOfCmd = 0;
+  let offset = 0;
+  let size = 0;
+
+  for (let i = 0; i < ncmds; i++) {
+    const cmd = cmds.add(offsetOfCmd).readU32();
+    sizeOfCmd = cmds.add(offsetOfCmd + 4).readU32();
+
+    if (cmd === LC_ENCRYPTION_INFO || cmd === LC_ENCRYPTION_INFO_64) {
+      offset = cmds.add(offsetOfCmd + 8).readU32();
+      size = cmds.add(offsetOfCmd + 12).readU32();
+      return [cmds.add(offsetOfCmd), offset, size, offsetOfCmd, sizeOfCmd] as EncryptInfoTuple;
+    }
+
+    offsetOfCmd += sizeOfCmd;
+  }
+
+  throw new Error('Cannot find crypt info');  
+}
+
 export async function dump(opt: Option = {}) {
   // load all frameworks
   warmup();
@@ -35,20 +64,20 @@ export async function dump(opt: Option = {}) {
   freeze();
 
   const bundle = base();
-  const downloaded: ISet = {};
+  const downloaded = new Set<string>();
   for (let mod of Process.enumerateModules()) {
     const filename = normalize(mod.path);
     if (!filename.startsWith(bundle))
       continue;
 
-    const info = findEncyptInfo!(mod.base) as EncryptInfoTuple;
+    const info = findCryptInfo(mod.base) as EncryptInfoTuple;
     const [ptr, offset, size, offsetOfCmd, sizeOfCmd] = info;
 
     if (ptr.isNull())
       continue;
 
     await download(filename);
-    downloaded[filename] = true;
+    downloaded.add(filename);
 
     // skip fat header
     const fatOffset = Process.findRangeByAddress(mod.base)!.file!.offset;
@@ -71,7 +100,7 @@ export async function dump(opt: Option = {}) {
 
 }
 
-async function pull(bundle: string, downloaded: ISet) {
+async function pull(bundle: string, downloaded: Set<string>) {
   const manager = ObjC.classes.NSFileManager.defaultManager();
   const enumerator = manager.enumeratorAtPath_(bundle);
   const pIsDir = Memory.alloc(Process.pointerSize);
@@ -85,7 +114,7 @@ async function pull(bundle: string, downloaded: ISet) {
       continue;
 
     const fullname = normalize(base.stringByAppendingPathComponent_(path));
-    if (downloaded[fullname])
+    if (downloaded.has(fullname))
       continue;
 
     pIsDir.writePointer(NULL);
@@ -96,8 +125,6 @@ async function pull(bundle: string, downloaded: ISet) {
   }
 }
 
-const cm = new CModule(c);
-const findEncyptInfo = new NativeFunction(cm['find_encryption_info'], ['pointer', 'uint32', 'uint32', 'uint32', 'uint32'], ['pointer']);
 
 export function warmup(): void {
   const { NSFileManager, NSBundle } = ObjC.classes
