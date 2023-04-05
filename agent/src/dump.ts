@@ -6,7 +6,7 @@ const MH_MAGIC_64 = 0xfeedfacf;
 const LC_ENCRYPTION_INFO = 0x21;
 const LC_ENCRYPTION_INFO_64 = 0x2c;
 
-type EncryptInfoTuple = [NativePointer, number, number, number, number];
+type EncryptInfoTuple = [NativePointer, number, number, number];
 
 interface Option {
   executableOnly?: boolean
@@ -35,25 +35,23 @@ function findCryptInfo(header: NativePointer) {
   const ncmds = header.add(16).readU32();
   const cmds = header.add(32);
 
-  let offsetOfCmd = 0;
+  let lc = cmds;
   let sizeOfCmd = 0;
-  let offset = 0;
-  let size = 0;
 
   for (let i = 0; i < ncmds; i++) {
-    const cmd = cmds.add(offsetOfCmd).readU32();
-    sizeOfCmd = cmds.add(offsetOfCmd + 4).readU32();
+    const cmd = lc.readU32();
+    sizeOfCmd = lc.add(4).readU32();
 
     if (cmd === LC_ENCRYPTION_INFO || cmd === LC_ENCRYPTION_INFO_64) {
-      offset = cmds.add(offsetOfCmd + 8).readU32();
-      size = cmds.add(offsetOfCmd + 12).readU32();
-      return [cmds.add(offsetOfCmd), offset, size, offsetOfCmd, sizeOfCmd] as EncryptInfoTuple;
+      const offset = lc.add(8).readU32();
+      const size = lc.add(12).readU32();
+      return [lc, offset, size, lc.sub(header).toUInt32()] as EncryptInfoTuple;
     }
 
-    offsetOfCmd += sizeOfCmd;
+    lc = lc.add(sizeOfCmd);
   }
 
-  throw new Error('Cannot find crypt info');  
+  return null;
 }
 
 export async function dump(opt: Option = {}) {
@@ -70,8 +68,11 @@ export async function dump(opt: Option = {}) {
     if (!filename.startsWith(bundle))
       continue;
 
-    const info = findCryptInfo(mod.base) as EncryptInfoTuple;
-    const [ptr, offset, size, offsetOfCmd, sizeOfCmd] = info;
+    const info = findCryptInfo(mod.base);
+    if (info === null)
+      continue
+
+    const [ptr, offset, size, offsetOfCmd] = info;
 
     if (ptr.isNull())
       continue;
@@ -87,7 +88,7 @@ export async function dump(opt: Option = {}) {
     send({ subject: 'patch', offset: fatOffset + offset, blob: session, filename });
 
     // erase cryptoff
-    send({ subject: 'patch', offset: fatOffset + offsetOfCmd, size: sizeOfCmd, filename });
+    send({ subject: 'patch', offset: fatOffset + offsetOfCmd + 8, size: 12, filename });
   }
 
   wakeup();

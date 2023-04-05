@@ -6,10 +6,9 @@
   "main": "agent/index.ts",
   "scripts": {
     "prepare": "npm run build",
-    "c": "node ../scripts/cmod.js",
     "compile": "frida-compile src/index.ts -o dist/agent.js",
-    "build": "npm run c && npm run compile -- -c",
-    "watch": "npm run c && npm run compile -- -w"
+    "build": "npm run compile -- -c",
+    "watch": "npm run compile -- -w"
   },
   "devDependencies": {
     "@types/frida-gum": "^16.2.0",
