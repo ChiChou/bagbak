@@ -114,7 +114,6 @@ class Handler {
   blob(id) {
     const blob = this.blobs.get(id)
     if (!blob) {
-      // console.log('id', id, this.blobs)
       throw new Error('invalid session id')
     }
     return blob
@@ -229,7 +228,6 @@ class Handler {
       const { subject } = payload;
       if (['memcpy', 'download', 'patch'].includes(subject)) {
         // don't wait
-        // console.log(subject)
         this[subject].call(this, payload, data)
       }
     } else if (type === 'error') {
