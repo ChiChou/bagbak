@@ -7,6 +7,17 @@
     "build": "npm --prefix agent run build",
     "watch": "npm --prefix agent run watch"
   },
+  "author": "CodeColorist",
+  "license": "MIT",
+  "bin": {
+    "bagbak": "./go.js"
+  },
+  "files": [
+    "/dist/agent.js",
+    "/cmod/source.c",
+    "/go.js",
+    "/lib/"
+  ],
   "devDependencies": {
     "@types/frida-gum": "^18.3.1",
     "@types/node": "^18.15.11",
