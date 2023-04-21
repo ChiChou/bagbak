@@ -3,6 +3,8 @@
 dump/
 output/
 
+agent.dist.js
+
 .DS_Store
 
 # Logs

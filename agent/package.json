@@ -6,7 +6,7 @@
   "main": "agent/index.ts",
   "scripts": {
     "prepare": "npm run build",
-    "compile": "frida-compile src/index.ts -o dist/agent.js",
+    "compile": "frida-compile src/index.ts -o ../agent.dist.js",
     "build": "npm run compile -- -c",
     "watch": "npm run compile -- -w"
   },

@@ -13,7 +13,7 @@
     "bagbak": "./go.js"
   },
   "files": [
-    "/agent/dist/agent.js",
+    "/agent.dist.js",
     "/go.js",
     "/lib/"
   ],
