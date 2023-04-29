@@ -416,7 +416,7 @@ async function main() {
 
       const ipa = path.join(program.output, app + '.ipa')
       await fs.rename(path.join(program.output, app + '.zip'), ipa)
-      await fs.rmdir(cwd, { recursive: true })
+      await fs.rm(cwd, { recursive: true })
 
       console.log(`archive: ${chalk.blue(ipa)}`)
       console.log(`contents: ${chalk.green(cwd)}`)
