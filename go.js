@@ -7,7 +7,6 @@ const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
 
-const mkdirp = require('./lib/mkdirp')
 const zip = require('./lib/zip')
 
 const BAR_OPTS = {
@@ -157,7 +156,7 @@ class Handler {
     const abs = path.resolve(this.cwd, path.relative(this.root, filename))
     const rel = path.relative(this.cwd, abs)
     if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
-      await mkdirp(path.dirname(abs))
+      await fs.mkdir(path.dirname(abs), { recursive: true })
       return abs
     }
     throw Error(`Suspicious path detected: ${filename}`)
@@ -256,7 +255,7 @@ function detached(reason, crash) {
 
 async function dump(dev, session, opt) {
   const { output } = opt
-  await mkdirp(output)
+  await fs.mkdir(output, { recursive: true })
   const parent = path.join(output, opt.app, 'Payload')
 
   try {
@@ -277,7 +276,7 @@ async function dump(dev, session, opt) {
   await script.load()
   const root = await script.exports.base()
   const cwd = path.join(parent, path.basename(root))
-  await mkdirp(cwd)
+  await fs.mkdir(cwd, { recursive: true })
 
   console.log('app root:', chalk.green(root))
 
@@ -416,7 +415,7 @@ async function main() {
 
       const ipa = path.join(program.output, app + '.ipa')
       await fs.rename(path.join(program.output, app + '.zip'), ipa)
-      await fs.rmdir(cwd, { recursive: true })
+      await fs.rm(cwd, { recursive: true })
 
       console.log(`archive: ${chalk.blue(ipa)}`)
       console.log(`contents: ${chalk.green(cwd)}`)
