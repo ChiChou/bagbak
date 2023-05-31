@@ -431,5 +431,5 @@ async function main() {
 main().catch(e => {
   console.error(chalk.red('FATAL ERROR'))
   console.error(e)
-  process.exit()
+  process.exit(1)
 })
