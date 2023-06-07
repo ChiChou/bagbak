@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 
-const progress = require('cli-progress')
-const chalk = require('chalk')
+import fsp from 'fs/promises';
+import path from 'path';
+import os from 'os';
 
-const fs = require('fs').promises
-const path = require('path')
-const os = require('os')
+import program from 'commander';
+import progress from 'cli-progress';
+import chalk from 'chalk';
 
-const zip = require('./lib/zip')
+import zip from './lib/zip.js';
+import Device from './lib/device.js';
 
 const BAR_OPTS = {
   format: chalk.cyan('{bar}') +
@@ -156,7 +158,7 @@ class Handler {
     const abs = path.resolve(this.cwd, path.relative(this.root, filename))
     const rel = path.relative(this.cwd, abs)
     if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
-      await fs.mkdir(path.dirname(abs), { recursive: true })
+      await fsp.mkdir(path.dirname(abs), { recursive: true })
       return abs
     }
     throw Error(`Suspicious path detected: ${filename}`)
@@ -164,7 +166,7 @@ class Handler {
 
   async patch({ offset, blob, size, filename }) {
     const output = await this.output(filename)
-    const fd = await fs.open(output, 'r+')
+    const fd = await fsp.open(output, 'r+')
     let buf = null
     if (blob) {
       buf = this.blob(blob).done()
@@ -194,11 +196,11 @@ class Handler {
     if (event === 'begin') {
       console.log(chalk.bold('download'), chalk.greenBright(this.truncate(filename)))
       const output = await this.output(filename)
-      const fd = await fs.open(output, 'w', stat.mode)
+      const fd = await fsp.open(output, 'w', stat.mode)
       const file = new File(session, stat.size, fd)
       this.files.set(session, file)
       try {
-        await fs.utimes(output, stat.atimeMs, stat.mtimeMs)
+        await fsp.utimes(output, stat.atimeMs, stat.mtimeMs)
       } catch (e) {
         this.misc.warnAboutNTFS = e.code === 'EINVAL' && os.platform() === 'win32'
       }
@@ -255,11 +257,11 @@ function detached(reason, crash) {
 
 async function dump(dev, session, opt) {
   const { output } = opt
-  await fs.mkdir(output, { recursive: true })
+  await fsp.mkdir(output, { recursive: true })
   const parent = path.join(output, opt.app, 'Payload')
 
   try {
-    const stat = await fs.stat(parent)
+    const stat = await fsp.stat(parent)
     if (stat.isDirectory() && !opt.override)
       throw new Error(`Destination ${parent} already exists. Try --override`)
   } catch (ex) {
@@ -269,14 +271,14 @@ async function dump(dev, session, opt) {
 
   session.detached.connect(detached)
 
-  const read = (...args) => fs.readFile(path.join(__dirname, ...args)).then(buf => buf.toString())
+  const read = (...args) => fsp.readFile(path.join(__dirname, ...args)).then(buf => buf.toString())
   const js = await read('agent.dist.js')
 
   const script = await session.createScript(js)
   await script.load()
   const root = await script.exports.base()
   const cwd = path.join(parent, path.basename(root))
-  await fs.mkdir(cwd, { recursive: true })
+  await fsp.mkdir(cwd, { recursive: true })
 
   console.log('app root:', chalk.green(root))
 
@@ -344,11 +346,7 @@ async function dump(dev, session, opt) {
 }
 
 
-const Device = require('./lib/device')
-
-
 async function main() {
-  const program = require('commander')
 
   program
     .name('bagbak')
@@ -414,8 +412,8 @@ async function main() {
       }
 
       const ipa = path.join(program.output, app + '.ipa')
-      await fs.rename(path.join(program.output, app + '.zip'), ipa)
-      await fs.rm(cwd, { recursive: true })
+      await fsp.rename(path.join(program.output, app + '.zip'), ipa)
+      await fsp.rm(cwd, { recursive: true })
 
       console.log(`archive: ${chalk.blue(ipa)}`)
       console.log(`contents: ${chalk.green(cwd)}`)

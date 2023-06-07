@@ -18,6 +18,7 @@
     "/go.js",
     "/lib/"
   ],
+  "type": "module",
   "devDependencies": {
     "@types/frida-gum": "^18.3.1",
     "@types/node": "^18.15.11",
