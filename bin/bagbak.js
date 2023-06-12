@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
+import chalk from 'chalk';
+import progress, { SingleBar } from 'cli-progress';
+
 import { Command } from 'commander';
 import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice } from 'frida';
 
 import { Main } from '../index.js';
-import { enumerateApps } from '../lib/utils.js';
+import { debugEnabled, enumerateApps } from '../lib/utils.js';
 
 /**
  * 
@@ -48,9 +51,7 @@ async function main() {
     .option('-D, --device <uuid>', 'connect to device with the given ID')
     .option('-H, --host <host>', 'connect to remote frida-server on HOST')
 
-    .option('-o, --output <output>', 'output directory', 'dump')
-    .option('-f, --override', 'override existing')
-    .option('-z, --zip', 'create zip archive (ipa)')
+    .option('-o, --output <output>', 'ipa filename')
     .usage('[bundle id or name]');
 
   program.parse(process.argv);
@@ -62,8 +63,6 @@ async function main() {
     console.error('This tool requires a jailbroken 64bit iOS device');
     process.exit(1);
   }
-
-  const job = new Main(device, program.args[0]);
 
   if (program.list) {
     const apps = await enumerateApps(device);
@@ -79,8 +78,79 @@ async function main() {
   }
 
   if (program.args.length === 1) {
-    await job.findApp();
-    await job.repack(`${program.output}.ipa`);
+    const target = program.args[0];
+
+    const apps = await enumerateApps(device);
+    const app = apps.find(app => app.name === target || app.identifier === target);
+    if (!app)
+      throw new Error(`Unable to find app ${target}`);
+
+    const job = new Main(device, app);
+
+    /**
+     * 
+     * @param {number} size 
+     * @returns {string} readable format
+     */
+    function humanFileSize(size) {
+      const i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
+      const unit = ['B', 'kB', 'MB', 'GB', 'TB'][i];
+      if (!unit) throw new Error('Out of range');
+      const val = (size / Math.pow(1024, i)).toFixed(2);
+      return `${val} ${unit}`;
+    }
+
+    /**
+     * @type {SingleBar | null}
+     */
+    let bar = null;
+
+    /**
+     * @type {string}
+     */
+    let current;
+
+    if (!debugEnabled()) {
+      job
+        .on('mkdir', (remote) => {
+          process.stdout.write('\r' + remote);
+        })
+        .on('download', (remote, size) => {
+          current = remote;
+          process.stdout.write('\r' + remote);
+  
+          if (bar) bar.stop();
+
+          if (size > 2 * 1024 * 1024) {
+            const format = `${chalk.cyan('{bar}')} ${chalk.grey(' | {percentage}% | {downloaded}/{size}')} ${remote}`
+            bar = new progress.SingleBar({
+              format,
+              barCompleteChar: '\u2588',
+              barIncompleteChar: '\u2591',
+            });
+            bar.start(size, 0);
+          }
+        })
+        .on('progress', (remote, downloaded, size) => {
+          if (remote !== current) throw new Error('Protocol Error');
+          if (!bar) return;
+          bar.update(downloaded, {
+            downloaded: humanFileSize(downloaded), size: humanFileSize(size)
+          });
+        })
+        .on('done', (remote) => {
+          if (remote !== current) throw new Error('Protocol Error');
+          if (!bar) return;
+          bar.update(bar.getTotal());
+          bar.stop();
+          bar = null;
+        })
+        .on('patch', (remote) => {
+          console.log('decrypt', remote);
+        })
+    }
+
+    await job.packTo(program.output);
     return;
   }
 

@@ -1,14 +1,17 @@
 import { EventEmitter } from "events";
-import { mkdir, open, readFile } from "fs/promises";
+import { mkdir, open, readFile, rename, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, join } from "path";
 
 import { Device } from "frida";
+
+import { findEncryptedBinaries } from './lib/scan.js';
 import { Pull } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
-import { debug, directoryExists, enumerateApps } from './lib/utils.js';
-import { findEncryptedBinaries } from "./lib/scan.js";
+import { debug, directoryExists, passthrough } from './lib/utils.js';
 import zip from './lib/zip.js';
+
+export { enumerateApps } from './lib/utils.js';
 
 /**
  * @typedef MessagePayload
@@ -27,21 +30,13 @@ export class Main extends EventEmitter {
   /**
    * 
    * @param {Device} device 
-   * @param {string} bundleId
+   * @param {import("frida").Application} app
    */
-  constructor(device, bundleId) {
+  constructor(device, app) {
     super();
 
-    this.#bundle = bundleId;
+    this.#app = app;
     this.#device = device;
-  }
-
-  async findApp() {
-    const apps = await enumerateApps(this.#device);
-    const app = apps.find(app => app.name === this.#bundle || app.identifier === this.#bundle);
-    this.app = app;
-    if (!app)
-      throw new Error(`Unable to find app: ${this.#bundle}`);
   }
 
   async copyToLocal(src, dest) {
@@ -49,33 +44,41 @@ export class Main extends EventEmitter {
 
     try {
       const pull = new Pull(client, src, dest, true);
+      passthrough(pull, this);
       await pull.start();
     } finally {
       client.end();
     }
   }
 
+  get bundle() {
+    return this.#app.identifier;
+  }
+
+  get remote() {
+    return this.#app.parameters.path;
+  }
+
   /**
    * 
    * @param {import("fs").PathLike} dest path
    * @param {boolean} override whether to override existing files
+   * @returns {Promise<string>}
    */
   async dumpTo(dest, override) {
-    const parent = join(dest, this.#bundle, 'Payload');
+    const parent = join(dest, this.bundle, 'Payload');
     if (await directoryExists(parent) && !override)
       throw new Error('Destination already exists');
 
     await mkdir(parent, { recursive: true });
 
     // fist, copy directory to local
-    const remoteRoot = this.app.parameters.path;
+    const remoteRoot = this.remote;
     debug('remote root', remoteRoot);
     debug('copy to', parent);
 
     const localRoot = join(parent, basename(remoteRoot));
-    if (!await directoryExists(localRoot)) {
-      await this.copyToLocal(remoteRoot, parent);
-    }
+    await this.copyToLocal(remoteRoot, parent);
 
     // find all encrypted binaries
     const map = await findEncryptedBinaries(localRoot);
@@ -110,6 +113,7 @@ export class Main extends EventEmitter {
         const payload = message.payload;
         const key = payload.name;
         if (payload.event === 'begin') {
+          this.emit('patch', key);
           debug('patch >>', join(localRoot, key));
           const fd = await open(join(localRoot, key), 'r+');
           fileHandles.set(key, fd);
@@ -129,23 +133,29 @@ export class Main extends EventEmitter {
 
       await script.load();
       const result = await script.exports.newDump(remoteRoot, dylibs);
-      // console.log('result =>', result);
+      debug('result =>', result);
       await script.unload();
       await session.detach();
       await this.#device.kill(pid);
     }
+
+    return parent;
   }
 
   /**
    * 
-   * @param {import("fs").PathLike} ipa path of ipa
+   * @param {import("fs").PathLike?} suggested path of ipa
    */
-  async repack(ipa) {
+  async packTo(suggested) {
     const cwd = join(tmpdir(), 'bagbak');
     await mkdir(cwd, { recursive: true });
-    await this.dumpTo(cwd, true);
+    const payload = await this.dumpTo(cwd, true);
 
-    // todo: zip
-    // await zipCommand(cwd, ipa);
+    const ipa = suggested || `${this.bundle}.ipa`;
+    await zip(ipa, payload, cwd);
+    await rename(join(cwd, ipa), ipa);
+    await rm(payload, { recursive: true, force: true });
+
+    console.log(`ipa saved to ${ipa}`);
   }
 }
