@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
-import { mkdir } from "fs/promises";
+import { mkdir, open, readFile } from "fs/promises";
 import { tmpdir } from "os";
-import { basename, join, relative } from "path";
+import { basename, join } from "path";
 
 import { Device } from "frida";
 
@@ -10,6 +10,11 @@ import { Pull } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
 import { directoryExists } from './lib/utils.js';
 import { findEncryptedBinaries } from "./lib/scan.js";
+
+/**
+ * @typedef MessagePayload
+ * @property {string} event
+ */
 
 export class Job extends EventEmitter {
   #device;
@@ -66,35 +71,6 @@ export class Job extends EventEmitter {
       throw new Error(`Unable to find app: ${this.#bundle}`);
   }
 
-  /**
-   * 
-   * @param {boolean} coldBoot whether to kill existing instance
-   * @returns {Promise<import("frida").Session>} frida session
-   */
-  async run(coldBoot) {
-    const app = this.app;
-
-    let needsNew = true;
-
-    if (app.parameters.started) {
-      if (coldBoot || !app.parameters.frontmost) {
-        await this.#device.kill(app.pid);
-      } else {
-        needsNew = false;
-      }
-    }
-
-    if (needsNew) {
-      const pid = await this.#device.spawn(app.identifier);
-      const session = await this.#device.attach(pid);
-      // await this.#device.resume(pid);
-      // await sleep(1000);
-      return session;
-    }
-
-    return this.#device.attach(app.pid);
-  }
-
   async copyToLocal(src, dest) {
     const client = await connect(this.#device);
 
@@ -114,28 +90,77 @@ export class Job extends EventEmitter {
   async dumpTo(dest, override) {
     const parent = join(dest, this.#bundle, 'Payload');
     if (await directoryExists(parent) && !override)
-    throw new Error('Destination already exists');
-    
+      throw new Error('Destination already exists');
+
     await mkdir(parent, { recursive: true });
-  
+
     // fist, copy directory to local
+    const remoteRoot = this.app.parameters.path;
+    console.log(remoteRoot);
     console.log('copy to', parent);
-    console.log(this.app.parameters.path);
 
-    const rootBundle = join(parent, basename(this.app.parameters.path));
-    if (!await directoryExists(rootBundle)) {
-      await this.copyToLocal(this.app.parameters.path, parent);
+    const localRoot = join(parent, basename(remoteRoot));
+    if (!await directoryExists(localRoot)) {
+      await this.copyToLocal(remoteRoot, parent);
     }
 
-    const map = await findEncryptedBinaries(rootBundle);
-    for (const [scope, list] of map.entries()) {
-      console.log('scope', scope);
-      for (const item of list) {
-        console.log(item)
-      }
-    }
+    // find all encrypted binaries
+    const map = await findEncryptedBinaries(localRoot);
+    const agentScript = await readFile(join('agent', 'tiny.js'));
+    /**
+     * @type {Map<string, import("fs/promises").FileHandle>}
+     */
+    const fileHandles = new Map();
 
-    // todo: dump
+    // execute dump
+    for (const [scope, dylibs] of map.entries()) {
+      const mainExecutable = [remoteRoot, scope].join('/');
+      const pid = await this.#device.spawn(mainExecutable);
+      console.log('pid =>', pid);
+      const session = await this.#device.attach(pid);
+      const script = await session.createScript(agentScript.toString());
+      script.logHandler = (level, text) => {
+        console.log('[script log]', level, text); // todo: color
+      };
+
+      /**
+       * @param {function(msg: import("frida").Message, data: ArrayBuffer): void} handler
+       */
+      script.message.connect(async (message, data) => {
+        if (message.type !== 'send') return;
+
+        console.log('msg', message, data);
+
+        /**
+         * @type {MessagePayload}
+         */
+        const payload = message.payload;
+        const key = payload.name;
+        if (payload.event === 'begin') {
+          console.log('patch >>', join(localRoot, key));
+          const fd = await open(join(localRoot, key), 'r+');
+          fileHandles.set(key, fd);
+        } else if (payload.event === 'trunk') {
+          await fileHandles.get(key).write(data, 0, data.byteLength, payload.fileOffset);
+        } else if (payload.event === 'end') {
+          const fd = fileHandles.get(key);
+          // remove cryptid
+          const zeroFilled = Buffer.alloc(4).fill(0);
+          fd.write(zeroFilled, 0, 4, payload.flagOffset);
+          await fileHandles.get(key).close();
+          fileHandles.delete(key);
+        }
+
+        script.post({ type: 'ack' });
+      });
+
+      await script.load();
+      const result = await script.exports.newDump(remoteRoot, dylibs);
+      // console.log('result =>', result);
+      await script.unload();
+      await session.detach();
+      await this.#device.kill(pid);
+    }
   }
 
   /**
