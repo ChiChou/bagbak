@@ -1,8 +1,3 @@
-Module.ensureInitialized('Foundation');
-
-if (!ObjC.available)
-  throw new Error('Objective-C Runtime is not available!');
-
 const HIGH_WATER_MARK = 1024 * 1024;
 
 /**
@@ -29,9 +24,6 @@ rpc.exports = {
    * @returns 
    */
   newDump(root, dylibs) {
-    const main = ObjC.classes.NSBundle.mainBundle();
-    const mainExecutable = main.executablePath();
-
     for (const [relative, info] of dylibs) {
       const basename = relative.split('/').pop();
       const { offset, size, id } = info.encryptInfo;
@@ -39,7 +31,7 @@ rpc.exports = {
       if (!id) continue;
 
       const dylibPath = [root, relative].join('/');
-      if (dylibPath !== mainExecutable.toString()) {
+      if (!Process.findModuleByName(dylibPath)) {
         Module.load(dylibPath);
       }
 
