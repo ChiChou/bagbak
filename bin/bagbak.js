@@ -80,7 +80,7 @@ async function main() {
 
   if (program.args.length === 1) {
     await job.findApp();
-    await job.repack();
+    await job.repack(`${program.output}.ipa`);
     return;
   }
 

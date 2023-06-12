@@ -6,8 +6,9 @@ import { basename, join } from "path";
 import { Device } from "frida";
 import { Pull } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
-import { directoryExists, enumerateApps } from './lib/utils.js';
+import { debug, directoryExists, enumerateApps } from './lib/utils.js';
 import { findEncryptedBinaries } from "./lib/scan.js";
+import zip from './lib/zip.js';
 
 /**
  * @typedef MessagePayload
@@ -68,8 +69,8 @@ export class Main extends EventEmitter {
 
     // fist, copy directory to local
     const remoteRoot = this.app.parameters.path;
-    console.log(remoteRoot);
-    console.log('copy to', parent);
+    debug('remote root', remoteRoot);
+    debug('copy to', parent);
 
     const localRoot = join(parent, basename(remoteRoot));
     if (!await directoryExists(localRoot)) {
@@ -88,11 +89,11 @@ export class Main extends EventEmitter {
     for (const [scope, dylibs] of map.entries()) {
       const mainExecutable = [remoteRoot, scope].join('/');
       const pid = await this.#device.spawn(mainExecutable);
-      console.log('pid =>', pid);
+      debug('pid =>', pid);
       const session = await this.#device.attach(pid);
       const script = await session.createScript(agentScript.toString());
       script.logHandler = (level, text) => {
-        console.log('[script log]', level, text); // todo: color
+        debug('[script log]', level, text); // todo: color
       };
 
       /**
@@ -101,7 +102,7 @@ export class Main extends EventEmitter {
       script.message.connect(async (message, data) => {
         if (message.type !== 'send') return;
 
-        console.log('msg', message, data);
+        debug('msg', message, data);
 
         /**
          * @type {MessagePayload}
@@ -109,7 +110,7 @@ export class Main extends EventEmitter {
         const payload = message.payload;
         const key = payload.name;
         if (payload.event === 'begin') {
-          console.log('patch >>', join(localRoot, key));
+          debug('patch >>', join(localRoot, key));
           const fd = await open(join(localRoot, key), 'r+');
           fileHandles.set(key, fd);
         } else if (payload.event === 'trunk') {
@@ -143,6 +144,8 @@ export class Main extends EventEmitter {
     const cwd = join(tmpdir(), 'bagbak');
     await mkdir(cwd, { recursive: true });
     await this.dumpTo(cwd, true);
+
     // todo: zip
+    // await zipCommand(cwd, ipa);
   }
 }
