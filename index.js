@@ -4,11 +4,9 @@ import { tmpdir } from "os";
 import { basename, join } from "path";
 
 import { Device } from "frida";
-
-import { apps } from './lib/installation.js';
 import { Pull } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
-import { directoryExists } from './lib/utils.js';
+import { directoryExists, enumerateApps } from './lib/utils.js';
 import { findEncryptedBinaries } from "./lib/scan.js";
 
 /**
@@ -16,7 +14,7 @@ import { findEncryptedBinaries } from "./lib/scan.js";
  * @property {string} event
  */
 
-export class Job extends EventEmitter {
+export class Main extends EventEmitter {
   #device;
   #bundle;
 
@@ -37,34 +35,8 @@ export class Job extends EventEmitter {
     this.#device = device;
   }
 
-  /**
-   * get all alls
-   * @returns {Promise<import("frida").Application[]>}
-   */
-  async list() {
-    // frida bug: this is empty on rootless iOS 16
-    const list1 = this.#device.enumerateApplications();
-    if (list1.length) return list1;
-
-    // fallback
-    const list2 = await apps(this.#device);
-    return list2.map(app => ({
-      pid: 0,
-      name: app.CFBundleDisplayName,
-      identifier: app.CFBundleIdentifier,
-      parameters: {
-        version: app.CFBundleShortVersionString,
-        build: app.CFBundleVersion,
-        path: app.Path,
-        started: false,
-        frontmost: false,
-        containers: [app.Container]
-      }
-    }));
-  }
-
   async findApp() {
-    const apps = await this.list();
+    const apps = await enumerateApps(this.#device);
     const app = apps.find(app => app.name === this.#bundle || app.identifier === this.#bundle);
     this.app = app;
     if (!app)
