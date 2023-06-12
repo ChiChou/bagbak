@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import chalk from 'chalk';
-import progress, { SingleBar } from 'cli-progress';
 
 import { Command } from 'commander';
 import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice } from 'frida';
@@ -100,57 +99,27 @@ async function main() {
       return `${val} ${unit}`;
     }
 
-    /**
-     * @type {SingleBar | null}
-     */
-    let bar = null;
-
-    /**
-     * @type {string}
-     */
-    let current;
-
     if (!debugEnabled()) {
       job
         .on('mkdir', (remote) => {
-          process.stdout.write('\r' + remote);
+          process.stdout.write(`${chalk.cyanBright('mkdir')} ${chalk.gray(remote)}\r`);
         })
         .on('download', (remote, size) => {
-          current = remote;
-          process.stdout.write('\r' + remote);
-  
-          if (bar) bar.stop();
-
-          if (size > 2 * 1024 * 1024) {
-            const format = `${chalk.cyan('{bar}')} ${chalk.grey(' | {percentage}% | {downloaded}/{size}')} ${remote}`
-            bar = new progress.SingleBar({
-              format,
-              barCompleteChar: '\u2588',
-              barIncompleteChar: '\u2591',
-            });
-            bar.start(size, 0);
-          }
+          process.stderr.write(`${chalk.gray(remote)}\r`);
         })
         .on('progress', (remote, downloaded, size) => {
-          if (remote !== current) throw new Error('Protocol Error');
-          if (!bar) return;
-          bar.update(downloaded, {
-            downloaded: humanFileSize(downloaded), size: humanFileSize(size)
-          });
+          process.stdout.write(`${humanFileSize(downloaded)}/${humanFileSize(size)} ${chalk.gray(remote)}\r`);
         })
         .on('done', (remote) => {
-          if (remote !== current) throw new Error('Protocol Error');
-          if (!bar) return;
-          bar.update(bar.getTotal());
-          bar.stop();
-          bar = null;
+          process.stdout.write(`${chalk.green('ok')} ${chalk.gray(remote)}\r`);
         })
         .on('patch', (remote) => {
-          console.log('decrypt', remote);
+          console.log(chalk.redBright('decrypt'), remote);
         })
     }
 
-    await job.packTo(program.output);
+    const saved = await job.packTo(program.output);
+    console.log(`Saved to ${chalk.yellow(saved)}`);
     return;
   }
 

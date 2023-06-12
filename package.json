@@ -28,7 +28,6 @@
     "bplist-creator": "^0.1.1",
     "bplist-parser": "^0.3.2",
     "chalk": "^4.0.0",
-    "cli-progress": "^3.8.2",
     "commander": "^5.1.0",
     "frida": "^16.0.11",
     "plist": "^3.0.6",

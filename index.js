@@ -145,6 +145,7 @@ export class Main extends EventEmitter {
   /**
    * 
    * @param {import("fs").PathLike?} suggested path of ipa
+   * @return {Promise<string>} final path of ipa
    */
   async packTo(suggested) {
     const cwd = join(tmpdir(), 'bagbak');
@@ -156,6 +157,6 @@ export class Main extends EventEmitter {
     await rename(join(cwd, ipa), ipa);
     await rm(payload, { recursive: true, force: true });
 
-    console.log(`ipa saved to ${ipa}`);
+    return ipa;
   }
 }
