@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { mkdir, open, readFile, rename, rm } from "fs/promises";
+import { mkdir, open, rename, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, join } from "path";
 
@@ -8,10 +8,10 @@ import { Device } from "frida";
 import { findEncryptedBinaries } from './lib/scan.js';
 import { Pull } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
-import { debug, directoryExists, passthrough } from './lib/utils.js';
+import { debug, directoryExists, passthrough, readAgent } from './lib/utils.js';
 import zip from './lib/zip.js';
 
-export { enumerateApps } from './lib/utils.js';
+export { enumerateApps, readAgent } from './lib/utils.js';
 
 /**
  * @typedef MessagePayload
@@ -78,11 +78,13 @@ export class Main extends EventEmitter {
     debug('copy to', parent);
 
     const localRoot = join(parent, basename(remoteRoot));
+    this.emit('sshBegin');
     await this.copyToLocal(remoteRoot, parent);
+    this.emit('sshFinish');
 
     // find all encrypted binaries
     const map = await findEncryptedBinaries(localRoot);
-    const agentScript = await readFile(join('agent', 'tiny.js'));
+    const agentScript = await readAgent();
     /**
      * @type {Map<string, import("fs/promises").FileHandle>}
      */

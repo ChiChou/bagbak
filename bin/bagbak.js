@@ -99,24 +99,29 @@ async function main() {
       return `${val} ${unit}`;
     }
 
-    if (!debugEnabled()) {
-      job
-        .on('mkdir', (remote) => {
-          process.stdout.write(`${chalk.cyanBright('mkdir')} ${chalk.gray(remote)}\r`);
-        })
-        .on('download', (remote, size) => {
-          process.stderr.write(`${chalk.gray(remote)}\r`);
-        })
-        .on('progress', (remote, downloaded, size) => {
-          process.stdout.write(`${humanFileSize(downloaded)}/${humanFileSize(size)} ${chalk.gray(remote)}\r`);
-        })
-        .on('done', (remote) => {
-          process.stdout.write(`${chalk.green('ok')} ${chalk.gray(remote)}\r`);
-        })
-        .on('patch', (remote) => {
-          console.log(chalk.redBright('decrypt'), remote);
-        })
-    }
+    // todo: UI
+    job
+      .on('mkdir', (remote) => {
+
+      })
+      .on('download', (remote, size) => {
+
+      })
+      .on('progress', (remote, downloaded, size) => {
+
+      })
+      .on('done', (remote) => {
+
+      })
+      .on('sshBegin', () => {
+        console.log(chalk.greenBright('[info]'), 'pulling app bundle from device, please be patient');
+      })
+      .on('sshFinish', () => {
+        console.log(chalk.greenBright('[info]'), 'app bundle downloaded');
+      })
+      .on('patch', (remote) => {
+        console.log(chalk.redBright('[decrypt]'), remote);
+      })
 
     const saved = await job.packTo(program.output);
     console.log(`Saved to ${chalk.yellow(saved)}`);
