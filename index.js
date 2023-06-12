@@ -154,7 +154,9 @@ export class Main extends EventEmitter {
     await mkdir(cwd, { recursive: true });
     const payload = await this.dumpTo(cwd, true);
 
-    const ipa = suggested || `${this.bundle}.ipa`;
+    const ipa = suggested ||
+      `${this.bundle}-${this.#app.parameters.version || 'Unknown'}.ipa`;
+
     await zip(ipa, payload, cwd);
     await rename(join(cwd, ipa), ipa);
     await rm(payload, { recursive: true, force: true });
