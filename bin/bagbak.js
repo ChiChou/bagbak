@@ -3,15 +3,15 @@
 import chalk from 'chalk';
 
 import { Command } from 'commander';
-import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice } from 'frida';
+import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Device } from 'frida';
 
-import { Main } from '../index.js';
+import { BagBak } from '../index.js';
 import { enableDebug, enumerateApps } from '../lib/utils.js';
 
 /**
  * 
  * @param {Command} options 
- * @returns {Promise<RequireResolve('frida').Device>} device
+ * @returns {Device} device
  */
 function getDeviceFromOptions(cmd) {
   let count = 0;
@@ -102,7 +102,7 @@ async function main() {
     if (!app)
       throw new Error(`Unable to find app ${target}`);
 
-    const job = new Main(device, app);
+    const job = new BagBak(device, app);
 
     let files = 0;
     let folders = 0;

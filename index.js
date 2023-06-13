@@ -1,9 +1,7 @@
 import { EventEmitter } from "events";
 import { mkdir, open, rm } from "fs/promises";
 import { tmpdir } from "os";
-import { basename, join, resolve } from "path";
-
-import { Device } from "frida";
+import { basename, join } from "path";
 
 import { findEncryptedBinaries } from './lib/scan.js';
 import { Pull, quote } from './lib/scp.js';
@@ -11,7 +9,6 @@ import { connect } from './lib/ssh.js';
 import { debug, directoryExists, passthrough, readAgent } from './lib/utils.js';
 import zip from './lib/zip.js';
 
-export { enumerateApps, readAgent } from './lib/utils.js';
 
 /**
  * @typedef MessagePayload
@@ -21,7 +18,7 @@ export { enumerateApps, readAgent } from './lib/utils.js';
 /**
  * main class
  */
-export class Main extends EventEmitter {
+export class BagBak extends EventEmitter {
   #device;
 
   /**
@@ -31,7 +28,7 @@ export class Main extends EventEmitter {
 
   /**
    * constructor
-   * @param {Device} device 
+   * @param {import("frida").Device} device 
    * @param {import("frida").Application} app
    */
   constructor(device, app) {
@@ -41,12 +38,17 @@ export class Main extends EventEmitter {
     this.#device = device;
   }
 
-  async copyToLocal(src, dest) {
+  /**
+   * scp from remote to local
+   * @param {string} src 
+   * @param {import("fs").PathLike} dest 
+   */
+  async #copyToLocal(src, dest) {
     const client = await connect(this.#device);
 
     try {
       const pull = new Pull(client, src, dest, true);
-      passthrough(pull, this);
+      passthrough(pull, this); // delegate events
       await pull.start();
     } finally {
       client.end();
@@ -94,7 +96,7 @@ export class Main extends EventEmitter {
    * @param {boolean} override whether to override existing files
    * @returns {Promise<string>}
    */
-  async dump(parent, override) {
+  async dump(parent, override=false) {
     if (!await directoryExists(parent))
       throw new Error('Output directory does not exist');
 
@@ -108,7 +110,7 @@ export class Main extends EventEmitter {
       throw new Error('Destination already exists');
 
     this.emit('sshBegin');
-    await this.copyToLocal(remoteRoot, parent);
+    await this.#copyToLocal(remoteRoot, parent);
     this.emit('sshFinish');
 
     // find all encrypted binaries
@@ -177,7 +179,7 @@ export class Main extends EventEmitter {
   }
 
   /**
-   * dump and pack to ipa
+   * dump and pack to ipa. if no name is provided, the bundle id and version will be used
    * @param {import("fs").PathLike?} suggested path of ipa
    * @returns {Promise<string>} final path of ipa
    */

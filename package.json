@@ -1,16 +1,18 @@
 {
   "name": "bagbak",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "Dump iOS app from a jailbroken device, based on frida.re",
   "main": "index.js",
   "scripts": {
-    "test": "echo 'Not supported'"
+    "test": "echo 'Not supported'",
+    "types": "npx -p typescript tsc index.js --declaration --allowJs --emitDeclarationOnly --outDir types --lib esnext"
   },
   "author": "CodeColorist",
   "license": "MIT",
   "bin": {
     "bagbak": "./bin/bagbak.js"
   },
+  "types": "types/index.d.ts",
   "files": [
     "index.js",
     "/agent/tiny.js",
