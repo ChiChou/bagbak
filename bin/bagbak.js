@@ -50,10 +50,13 @@ async function main() {
     .option('-D, --device <uuid>', 'connect to device with the given ID')
     .option('-H, --host <host>', 'connect to remote frida-server on HOST')
 
-    .option('-o, --output <output>', 'ipa filename')
+    .option('-d, --debug', 'enable debug output')
     .usage('[bundle id or name]');
 
   program.parse(process.argv);
+
+  if (program.debug)
+    process.env.DEBUG = 'enabled';
 
   const device = await getDeviceFromOptions(program);
   const info = await device.querySystemParameters();
