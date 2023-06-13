@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
-import { mkdir, open, rename, rm } from "fs/promises";
+import { mkdir, open } from "fs/promises";
 import { tmpdir } from "os";
-import { basename, join } from "path";
+import { basename, join, resolve } from "path";
 
 import { Device } from "frida";
 
@@ -154,12 +154,14 @@ export class Main extends EventEmitter {
     await mkdir(cwd, { recursive: true });
     const payload = await this.dumpTo(cwd, true);
 
-    const ipa = suggested ||
-      `${this.bundle}-${this.#app.parameters.version || 'Unknown'}.ipa`;
+    debug('payload =>', payload);
 
-    await zip(ipa, payload, cwd);
-    await rename(join(cwd, ipa), ipa);
-    await rm(payload, { recursive: true, force: true });
+    const ver = this.#app.parameters.version || 'Unknown';
+    const defaultTemplate = `${this.bundle}-${ver}.ipa`;
+    const ipa = suggested || defaultTemplate;
+
+    const full = resolve(process.cwd(), ipa);
+    await zip(full, payload);
 
     return ipa;
   }
