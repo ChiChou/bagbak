@@ -20,7 +20,6 @@ export { enumerateApps, readAgent } from './lib/utils.js';
 
 export class Main extends EventEmitter {
   #device;
-  #bundle;
 
   /**
    * @type {import("frida").Application | null}
