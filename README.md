@@ -1,5 +1,11 @@
 # bagbak
 
+[![version](https://img.shields.io/npm/v/bagbak)]((https://www.npmjs.com/package/bagbak))
+[![downloads](https://img.shields.io/npm/dm/bagbak)](https://www.npmjs.com/package/bagbak)
+[![issues](https://img.shields.io/github/issues/chichou/bagbak)](https://github.com/chichou/bagbak/issues)
+[![sponsers](https://img.shields.io/github/sponsors/chichou)](https://github.com/sponsors/chichou)
+[![license](https://img.shields.io/github/license/chichou/bagbak)](LICENSE)
+
 Yet another frida based App decryptor. Requires jailbroken iOS device and [frida.re](https://www.frida.re/)
 
 ![demo](images/screen.gif)
