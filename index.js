@@ -1,12 +1,12 @@
 import { EventEmitter } from "events";
-import { mkdir, open } from "fs/promises";
+import { mkdir, open, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, join, resolve } from "path";
 
 import { Device } from "frida";
 
 import { findEncryptedBinaries } from './lib/scan.js';
-import { Pull } from './lib/scp.js';
+import { Pull, quote } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
 import { debug, directoryExists, passthrough, readAgent } from './lib/utils.js';
 import zip from './lib/zip.js';
@@ -18,6 +18,9 @@ export { enumerateApps, readAgent } from './lib/utils.js';
  * @property {string} event
  */
 
+/**
+ * main class
+ */
 export class Main extends EventEmitter {
   #device;
 
@@ -27,7 +30,7 @@ export class Main extends EventEmitter {
   #app = null;
 
   /**
-   * 
+   * constructor
    * @param {Device} device 
    * @param {import("frida").Application} app
    */
@@ -50,6 +53,33 @@ export class Main extends EventEmitter {
     }
   }
 
+  /**
+   * hack: some extension is not executable
+   * @param {string} path 
+   * @returns 
+   */
+  async #executableWorkaround(path) {
+    if (!path.startsWith('/private/var/containers/Bundle/Application/')) {
+      return; // do not apply to system apps
+    }
+
+    const client = await connect(this.#device);
+    const cmd = `chmod +xX ${quote(path)}`;
+    return new Promise((resolve, reject) => {
+      client.exec(cmd, (err, stream) => {
+        if (err) return reject(err);
+        stream
+          .on('close', (code, signal) => {
+            client.end();
+            if (code === 0) return resolve();
+            reject(new Error(`remote command "${cmd}" exited with code ${code}`));
+          })
+          .on('data', () => {}) // this handler is a must, otherwise the stream will hang
+          .stderr.pipe(process.stderr); // proxy stderr
+      });
+    });
+  }
+
   get bundle() {
     return this.#app.identifier;
   }
@@ -59,17 +89,14 @@ export class Main extends EventEmitter {
   }
 
   /**
-   * 
-   * @param {import("fs").PathLike} dest path
+   * dump raw app bundle to directory (no ipa)
+   * @param {import("fs").PathLike} parent path
    * @param {boolean} override whether to override existing files
    * @returns {Promise<string>}
    */
-  async dumpTo(dest, override) {
-    const parent = join(dest, this.bundle, 'Payload');
-    if (await directoryExists(parent) && !override)
-      throw new Error('Destination already exists');
-
-    await mkdir(parent, { recursive: true });
+  async dump(parent, override) {
+    if (!await directoryExists(parent))
+      throw new Error('Output directory does not exist');
 
     // fist, copy directory to local
     const remoteRoot = this.remote;
@@ -77,6 +104,9 @@ export class Main extends EventEmitter {
     debug('copy to', parent);
 
     const localRoot = join(parent, basename(remoteRoot));
+    if (await directoryExists(localRoot) && !override)
+      throw new Error('Destination already exists');
+
     this.emit('sshBegin');
     await this.copyToLocal(remoteRoot, parent);
     this.emit('sshFinish');
@@ -92,6 +122,9 @@ export class Main extends EventEmitter {
     // execute dump
     for (const [scope, dylibs] of map.entries()) {
       const mainExecutable = [remoteRoot, scope].join('/');
+      debug('main executable =>', mainExecutable);
+      await this.#executableWorkaround(mainExecutable);
+
       const pid = await this.#device.spawn(mainExecutable);
       debug('pid =>', pid);
       const session = await this.#device.attach(pid);
@@ -140,26 +173,26 @@ export class Main extends EventEmitter {
       await this.#device.kill(pid);
     }
 
-    return parent;
+    return localRoot;
   }
 
   /**
-   * 
+   * dump and pack to ipa
    * @param {import("fs").PathLike?} suggested path of ipa
    * @returns {Promise<string>} final path of ipa
    */
-  async packTo(suggested) {
-    const cwd = join(tmpdir(), 'bagbak');
-    await mkdir(cwd, { recursive: true });
-    const payload = await this.dumpTo(cwd, true);
-
+  async pack(suggested) {
+    const payload = join(tmpdir(), 'bagbak', this.bundle, 'Payload');
+    await rm(payload, { recursive: true, force: true });
+    await mkdir(payload, { recursive: true });
+    await this.dump(payload, true);
     debug('payload =>', payload);
 
     const ver = this.#app.parameters.version || 'Unknown';
     const defaultTemplate = `${this.bundle}-${ver}.ipa`;
     const ipa = suggested || defaultTemplate;
 
-    const full = resolve(process.cwd(), ipa);
+    const full = join(process.cwd(), ipa);
     await zip(full, payload);
 
     return ipa;

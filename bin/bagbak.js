@@ -50,7 +50,10 @@ async function main() {
     .option('-D, --device <uuid>', 'connect to device with the given ID')
     .option('-H, --host <host>', 'connect to remote frida-server on HOST')
 
+    .option('-f, --force', 'override existing files')
     .option('-d, --debug', 'enable debug output')
+    .option('-r, --raw', 'dump raw app bundle to directory (no ipa)')
+    .option('-o, --output <output>', 'ipa filename or directory to dump to')
     .usage('[bundle id or name]');
 
   program.parse(process.argv);
@@ -128,7 +131,10 @@ async function main() {
         console.log(chalk.redBright('[decrypt]'), remote);
       })
 
-    const saved = await job.packTo(program.output);
+    const saved = program.raw ?
+      await job.dump(program.output || '.', program.force) :
+      await job.pack(program.output);
+
     console.log(`Saved to ${chalk.yellow(saved)}`);
     return;
   }

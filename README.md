@@ -44,9 +44,18 @@ Options:
   -R, --remote           connect to remote frida-server
   -D, --device <uuid>    connect to device with the given ID
   -H, --host <host>      connect to remote frida-server on HOST
-  -o, --output <output>  ipa filename
+  -f, --force            override existing files
+  -d, --debug            enable debug output
+  -r, --raw              dump raw app bundle to directory (no ipa)
+  -o, --output <output>  ipa filename or directory to dump to
   -h, --help             display help for command
 ```
+
+Example:
+
+* `bagbak -l` to list all apps
+* `bagbak --raw Chrome` to dump the app to current directory
+* `bagbak com.google.chrome.ios` to dump app to `com.google.chrome.ios-[version].ipa`
 
 ## 国内用户 frida 安装失败问题
 
