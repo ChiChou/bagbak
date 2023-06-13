@@ -68,13 +68,25 @@ async function main() {
 
   if (program.list) {
     const apps = await enumerateApps(device);
-    console.table(apps.map(app => {
-      return {
-        'Label': app.name,
-        'Bundle ID': app.identifier,
-        'Version': app.parameters.version
-      }
-    }));
+
+    const verWidth = Math.max(...apps.map(app => app.parameters?.version?.length || 0));
+    const idWidth = Math.max(...apps.map(app => app.identifier.length));
+
+    console.log(
+      chalk.gray('Version'.padStart(verWidth)),
+      chalk.gray('Identifier'.padEnd(idWidth)),
+      chalk.gray('Name'),
+    );
+
+    console.log(chalk.gray('─'.repeat(10 + verWidth + idWidth)));
+
+    for (const app of apps) {
+      console.log(
+        chalk.yellowBright((app.parameters?.version || '').padStart(verWidth)),
+        chalk.greenBright(app.identifier.padEnd(idWidth)),
+        app.name
+      );
+    }
 
     return;
   }
