@@ -147,7 +147,7 @@ export class Main extends EventEmitter {
   /**
    * 
    * @param {import("fs").PathLike?} suggested path of ipa
-   * @return {Promise<string>} final path of ipa
+   * @returns {Promise<string>} final path of ipa
    */
   async packTo(suggested) {
     const cwd = join(tmpdir(), 'bagbak');
