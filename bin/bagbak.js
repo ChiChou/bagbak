@@ -86,19 +86,6 @@ async function main() {
 
     const job = new Main(device, app);
 
-    /**
-     * 
-     * @param {number} size 
-     * @returns {string} readable format
-     */
-    function humanFileSize(size) {
-      const i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
-      const unit = ['B', 'kB', 'MB', 'GB', 'TB'][i];
-      if (!unit) throw new Error('Out of range');
-      const val = (size / Math.pow(1024, i)).toFixed(2);
-      return `${val} ${unit}`;
-    }
-
     let files = 0;
     let folders = 0;
 
