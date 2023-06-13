@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice } from 'frida';
 
 import { Main } from '../index.js';
-import { debugEnabled, enumerateApps } from '../lib/utils.js';
+import { enumerateApps } from '../lib/utils.js';
 
 /**
  * 
@@ -99,10 +99,12 @@ async function main() {
       return `${val} ${unit}`;
     }
 
-    // todo: UI
+    let files = 0;
+    let folders = 0;
+
     job
       .on('mkdir', (remote) => {
-
+        folders++;
       })
       .on('download', (remote, size) => {
 
@@ -111,12 +113,13 @@ async function main() {
 
       })
       .on('done', (remote) => {
-
+        process.stdout.write(`\r${chalk.greenBright('[info]')} downloaded ${files++} files and ${folders} folders`);
       })
       .on('sshBegin', () => {
         console.log(chalk.greenBright('[info]'), 'pulling app bundle from device, please be patient');
       })
       .on('sshFinish', () => {
+        process.stdout.write('\n');
         console.log(chalk.greenBright('[info]'), 'app bundle downloaded');
       })
       .on('patch', (remote) => {
