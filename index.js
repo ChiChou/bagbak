@@ -6,7 +6,7 @@ import { basename, join } from "path";
 import { findEncryptedBinaries } from './lib/scan.js';
 import { Pull, quote } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
-import { debug, directoryExists, passthrough, readAgent } from './lib/utils.js';
+import { debug, directoryExists, readAgent } from './lib/utils.js';
 import zip from './lib/zip.js';
 
 
@@ -46,10 +46,15 @@ export class BagBak extends EventEmitter {
   async #copyToLocal(src, dest) {
     const client = await connect(this.#device);
 
+    const pull = new Pull(client, src, dest, true);
+    const events = ['download', 'mkdir', 'progress', 'done'];
+    for (const event of events) {
+       // delegate events
+      pull.receiver.on(event, (...args) => this.emit(event, ...args));
+    }
+
     try {
-      const pull = new Pull(client, src, dest, true);
-      passthrough(pull, this); // delegate events
-      await pull.start();
+      await pull.execute();
     } finally {
       client.end();
     }

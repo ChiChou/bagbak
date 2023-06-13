@@ -16,6 +16,7 @@ export class BagBak extends EventEmitter {
      */
     pack(suggested?: PathLike): Promise<string>;
 
+    // todo: rename events
     on(event: 'download', listener: (src: string, size: number) => void): this;
     on(event: 'mkdir', listener: (path: string) => void): this;
     on(event: 'progress', listener: (src: string, written: number, size: number) => void): this;
