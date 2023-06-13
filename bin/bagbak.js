@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice } from 'frida';
 
 import { Main } from '../index.js';
-import { enumerateApps } from '../lib/utils.js';
+import { enableDebug, enumerateApps } from '../lib/utils.js';
 
 /**
  * 
@@ -56,7 +56,7 @@ async function main() {
   program.parse(process.argv);
 
   if (program.debug)
-    process.env.DEBUG = 'enabled';
+    enableDebug(true);
 
   const device = await getDeviceFromOptions(program);
   const info = await device.querySystemParameters();
