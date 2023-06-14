@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import { mkdir, open, rm } from "fs/promises";
 import { tmpdir } from "os";
-import { basename, join } from "path";
+import { basename, join, resolve } from "path";
 
 import { findEncryptedBinaries } from './lib/scan.js';
 import { Pull, quote } from './lib/scp.js';
@@ -49,7 +49,7 @@ export class BagBak extends EventEmitter {
     const pull = new Pull(client, src, dest, true);
     const events = ['download', 'mkdir', 'progress', 'done'];
     for (const event of events) {
-       // delegate events
+      // delegate events
       pull.receiver.on(event, (...args) => this.emit(event, ...args));
     }
 
@@ -81,7 +81,7 @@ export class BagBak extends EventEmitter {
             if (code === 0) return resolve();
             reject(new Error(`remote command "${cmd}" exited with code ${code}`));
           })
-          .on('data', () => {}) // this handler is a must, otherwise the stream will hang
+          .on('data', () => { }) // this handler is a must, otherwise the stream will hang
           .stderr.pipe(process.stderr); // proxy stderr
       });
     });
@@ -101,7 +101,7 @@ export class BagBak extends EventEmitter {
    * @param {boolean} override whether to override existing files
    * @returns {Promise<string>}
    */
-  async dump(parent, override=false) {
+  async dump(parent, override = false) {
     if (!await directoryExists(parent))
       throw new Error('Output directory does not exist');
 
@@ -197,9 +197,14 @@ export class BagBak extends EventEmitter {
 
     const ver = this.#app.parameters.version || 'Unknown';
     const defaultTemplate = `${this.bundle}-${ver}.ipa`;
-    const ipa = suggested || defaultTemplate;
 
-    const full = join(process.cwd(), ipa);
+    const ipa = suggested ?
+      (await directoryExists(suggested) ?
+        join(suggested, defaultTemplate) :
+        suggested) :
+      defaultTemplate;
+
+    const full = resolve(process.cwd(), ipa);
     await zip(full, payload);
 
     return ipa;
