@@ -120,6 +120,7 @@ export class BagBak extends EventEmitter {
 
     // find all encrypted binaries
     const map = await findEncryptedBinaries(localRoot);
+    debug('encrypted binaries', map);
     const agentScript = await readAgent();
     /**
      * @type {Map<string, import("fs/promises").FileHandle>}
