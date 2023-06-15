@@ -6,7 +6,7 @@ import { basename, join, resolve } from "path";
 import { findEncryptedBinaries } from './lib/scan.js';
 import { Pull, quote } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
-import { debug, directoryExists, readAgent } from './lib/utils.js';
+import { debug, directoryExists, readFromPackage } from './lib/utils.js';
 import zip from './lib/zip.js';
 
 
@@ -121,7 +121,7 @@ export class BagBak extends EventEmitter {
     // find all encrypted binaries
     const map = await findEncryptedBinaries(localRoot);
     debug('encrypted binaries', map);
-    const agentScript = await readAgent();
+    const agentScript = await readFromPackage('agent', 'tiny.js');
     /**
      * @type {Map<string, import("fs/promises").FileHandle>}
      */

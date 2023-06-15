@@ -6,12 +6,12 @@ import { Command } from 'commander';
 import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Device } from 'frida';
 
 import { BagBak } from '../index.js';
-import { enableDebug, enumerateApps } from '../lib/utils.js';
+import { enableDebug, enumerateApps, version } from '../lib/utils.js';
 
 /**
  * 
- * @param {Command} options 
- * @returns {Device} device
+ * @param {Command} cmd 
+ * @returns {Promise<Device>} device
  */
 function getDeviceFromOptions(cmd) {
   let count = 0;
@@ -54,7 +54,8 @@ async function main() {
     .option('-d, --debug', 'enable debug output')
     .option('-r, --raw', 'dump raw app bundle to directory (no ipa)')
     .option('-o, --output <output>', 'ipa filename or directory to dump to')
-    .usage('[bundle id or name]');
+    .usage('[bundle id or name]')
+    .version(await version());
 
   program.parse(process.argv);
 
