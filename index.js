@@ -78,8 +78,11 @@ export class BagBak extends EventEmitter {
         stream
           .on('close', (code, signal) => {
             client.end();
-            if (code === 0) return resolve();
-            reject(new Error(`remote command "${cmd}" exited with code ${code}`));
+            resolve();
+
+            if (code !== 0) {
+              console.error(`failed to execute "${cmd}", exited with code ${code}`);
+            }
           })
           .on('data', () => { }) // this handler is a must, otherwise the stream will hang
           .stderr.pipe(process.stderr); // proxy stderr
