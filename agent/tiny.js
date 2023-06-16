@@ -66,10 +66,14 @@ rpc.exports = {
           fileOffset += HIGH_WATER_MARK;
           send({ event: 'trunk', fileOffset, name: relative }, p.readByteArray(remain));
           recv('ack').wait();
+
+          const zeroFilled = new ArrayBuffer(12); // cryptoff, cryptsize, cryptid
+          send({ event: 'trunk', fileOffset: info.encCmdOffset + 8, name: relative }, zeroFilled);
+          recv('ack').wait();
         }
       }
 
-      send({ event: 'end', name: relative, flagOffset: info.encCmdOffset + 16 });
+      send({ event: 'end', name: relative});
       recv('ack').wait();
     }
 

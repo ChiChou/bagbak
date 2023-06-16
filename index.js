@@ -162,10 +162,6 @@ export class BagBak extends EventEmitter {
         } else if (payload.event === 'trunk') {
           await fileHandles.get(key).write(data, 0, data.byteLength, payload.fileOffset);
         } else if (payload.event === 'end') {
-          const fd = fileHandles.get(key);
-          // remove cryptid
-          const zeroFilled = Buffer.alloc(4).fill(0);
-          fd.write(zeroFilled, 0, 4, payload.flagOffset);
           await fileHandles.get(key).close();
           fileHandles.delete(key);
         }
