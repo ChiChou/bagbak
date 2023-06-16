@@ -1,27 +1,35 @@
-import { Application, Device } from "frida";
-import { PathLike } from "fs";
-
+/**
+ * @typedef MessagePayload
+ * @property {string} event
+ */
+/**
+ * main class
+ */
 export class BagBak extends EventEmitter {
-    constructor(device: Device, app: Application);
+    /**
+     * constructor
+     * @param {import("frida").Device} device
+     * @param {import("frida").Application} app
+     */
+    constructor(device: import("frida").Device, app: import("frida").Application);
     get bundle(): string;
     get remote(): string;
-
     /**
      * dump raw app bundle to directory (no ipa)
+     * @param {import("fs").PathLike} parent path
+     * @param {boolean} override whether to override existing files
+     * @returns {Promise<string>}
      */
-    dump(parent: PathLike, override?: boolean): Promise<string>;
-
+    dump(parent: import("fs").PathLike, override?: boolean): Promise<string>;
     /**
      * dump and pack to ipa. if no name is provided, the bundle id and version will be used
+     * @param {import("fs").PathLike?} suggested path of ipa
+     * @returns {Promise<string>} final path of ipa
      */
-    pack(suggested?: PathLike): Promise<string>;
-
-    // todo: rename events
-    on(event: 'download', listener: (src: string, size: number) => void): this;
-    on(event: 'mkdir', listener: (path: string) => void): this;
-    on(event: 'progress', listener: (src: string, written: number, size: number) => void): this;
-    on(event: 'done', listener: (src: string) => void): this;
-    on(event: 'sshBegin', listener: () => void): this;
-    on(event: 'sshFinish', listener: () => void): this;
-    on(event: 'patch', listener: (remote: string) => void): this;
+    pack(suggested: import("fs").PathLike | null): Promise<string>;
+    #private;
 }
+export type MessagePayload = {
+    event: string;
+};
+import { EventEmitter } from "events";
