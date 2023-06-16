@@ -114,3 +114,4 @@ dist
 
 *.app/
 *.ipa
+types/
