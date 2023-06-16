@@ -1,14 +1,13 @@
-import { EventEmitter } from "events";
-import { mkdir, open, rm } from "fs/promises";
-import { tmpdir } from "os";
-import { basename, join, resolve } from "path";
+import { EventEmitter } from 'events';
+import { mkdir, open, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { basename, join, resolve } from 'path';
 
 import { findEncryptedBinaries } from './lib/scan.js';
 import { Pull, quote } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
 import { debug, directoryExists, readFromPackage } from './lib/utils.js';
 import zip from './lib/zip.js';
-
 
 /**
  * @typedef MessagePayload
@@ -33,7 +32,7 @@ export class BagBak extends EventEmitter {
 
   /**
    * constructor
-   * @param {import("frida").Device} device 
+   * @param {import("frida").Device} device
    * @param {import("frida").Application} app
    */
   constructor(device, app) {
@@ -46,22 +45,22 @@ export class BagBak extends EventEmitter {
       const { SSH_USERNAME, SSH_PASSWORD } = process.env;
       this.#auth = {
         username: SSH_USERNAME,
-        password: SSH_PASSWORD
+        password: SSH_PASSWORD,
       };
     } else if ('SSH_PRIVATE_KEY' in process.env) {
       throw new Error('key auth not supported yet');
     } else {
       this.#auth = {
         username: 'root',
-        password: 'alpine'
+        password: 'alpine',
       };
     }
   }
 
   /**
    * scp from remote to local
-   * @param {string} src 
-   * @param {import("fs").PathLike} dest 
+   * @param {string} src
+   * @param {import("fs").PathLike} dest
    */
   async #copyToLocal(src, dest) {
     const client = await connect(this.#device, this.#auth);
@@ -82,8 +81,8 @@ export class BagBak extends EventEmitter {
 
   /**
    * hack: some extension is not executable
-   * @param {string} path 
-   * @returns 
+   * @param {string} path
+   * @returns
    */
   async #executableWorkaround(path) {
     if (!path.startsWith('/private/var/containers/Bundle/Application/')) {
@@ -101,10 +100,12 @@ export class BagBak extends EventEmitter {
             resolve();
 
             if (code !== 0) {
-              console.error(`failed to execute "${cmd}", exited with code ${code}`);
+              console.error(
+                `failed to execute "${cmd}", exited with code ${code}`
+              );
             }
           })
-          .on('data', () => { }) // this handler is a must, otherwise the stream will hang
+          .on('data', () => {}) // this handler is a must, otherwise the stream will hang
           .stderr.pipe(process.stderr); // proxy stderr
       });
     });
@@ -125,7 +126,7 @@ export class BagBak extends EventEmitter {
    * @returns {Promise<string>}
    */
   async dump(parent, override = false) {
-    if (!await directoryExists(parent))
+    if (!(await directoryExists(parent)))
       throw new Error('Output directory does not exist');
 
     // fist, copy directory to local
@@ -134,7 +135,7 @@ export class BagBak extends EventEmitter {
     debug('copy to', parent);
 
     const localRoot = join(parent, basename(remoteRoot));
-    if (await directoryExists(localRoot) && !override)
+    if ((await directoryExists(localRoot)) && !override)
       throw new Error('Destination already exists');
 
     this.emit('sshBegin');
@@ -183,7 +184,9 @@ export class BagBak extends EventEmitter {
           const fd = await open(join(localRoot, key), 'r+');
           fileHandles.set(key, fd);
         } else if (payload.event === 'trunk') {
-          await fileHandles.get(key).write(data, 0, data.byteLength, payload.fileOffset);
+          await fileHandles
+            .get(key)
+            .write(data, 0, data.byteLength, payload.fileOffset);
         } else if (payload.event === 'end') {
           await fileHandles.get(key).close();
           fileHandles.delete(key);
@@ -218,11 +221,11 @@ export class BagBak extends EventEmitter {
     const ver = this.#app.parameters.version || 'Unknown';
     const defaultTemplate = `${this.bundle}-${ver}.ipa`;
 
-    const ipa = suggested ?
-      (await directoryExists(suggested) ?
-        join(suggested, defaultTemplate) :
-        suggested) :
-      defaultTemplate;
+    const ipa = suggested
+      ? (await directoryExists(suggested))
+        ? join(suggested, defaultTemplate)
+        : suggested
+      : defaultTemplate;
 
     const full = resolve(process.cwd(), ipa);
     await zip(full, payload);

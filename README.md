@@ -1,6 +1,6 @@
 # bagbak
 
-[![version](https://img.shields.io/npm/v/bagbak)]((https://www.npmjs.com/package/bagbak))
+[![version](https://img.shields.io/npm/v/bagbak)](<(https://www.npmjs.com/package/bagbak)>)
 [![downloads](https://img.shields.io/npm/dm/bagbak)](https://www.npmjs.com/package/bagbak)
 [![issues](https://img.shields.io/github/issues/chichou/bagbak)](https://github.com/chichou/bagbak/issues)
 [![sponsers](https://img.shields.io/github/sponsors/chichou)](https://github.com/sponsors/chichou)
@@ -12,7 +12,7 @@ Only tested on iOS 14 (unco0ver) and iOS 16 (checkm8). Dopamine seems to have is
 
 ![demo](images/screen.gif)
 
-*The name of this project doesn't have any meaning. I was just listening to that song while typing.*
+_The name of this project doesn't have any meaning. I was just listening to that song while typing._
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ Only tested on iOS 14 (unco0ver) and iOS 16 (checkm8). Dopamine seems to have is
 
 With Cydia:
 
-* [frida.re](https://www.frida.re/docs/ios/)
+- [frida.re](https://www.frida.re/docs/ios/)
 
 Rootless:
 
@@ -28,12 +28,12 @@ If your are using rootless jailbreak, another project of mine [fruity-frida](htt
 
 ### On desktop
 
-* [node.js](https://nodejs.org/). If you have issues on `npm install`, your node.js might be either too new or too old. Try to use `nvm` to install a compatible version or download the correct installer.
-* `zip` or `7z` command is needed to create zip archive. On most of the distros, you don't need to install them manually.
+- [node.js](https://nodejs.org/). If you have issues on `npm install`, your node.js might be either too new or too old. Try to use `nvm` to install a compatible version or download the correct installer.
+- `zip` or `7z` command is needed to create zip archive. On most of the distros, you don't need to install them manually.
 
 ### Windows Compatibility
 
-* Filesystem of iOS differs from Windows. If you are running bagbak on Windows, **some of the file attributes (e.g., executable bit) will be lost**, thus the repacked ipa may not be able to reinstall on your phone. But it does not matter if you only indend to do static analysis.
+- Filesystem of iOS differs from Windows. If you are running bagbak on Windows, **some of the file attributes (e.g., executable bit) will be lost**, thus the repacked ipa may not be able to reinstall on your phone. But it does not matter if you only indend to do static analysis.
 
 ## Install
 
@@ -61,18 +61,17 @@ Options:
 
 Environments variables:
 
-* `DEBUG=1` enable debug output for troubleshooting
-* `DEBUG_SCP=1` debug SCP protocol
-* `SSH_USERNAME` username for iPhone SSH, default to `root`
-* `SSH_PASSWORD` password for iPhone SSH, default to `alpine`
-* `SSH_PORT` port for iPhone SSH. If not given, bagbak will scan port 22 (OpenSSH) and port 44 (Dropbear)
-
+- `DEBUG=1` enable debug output for troubleshooting
+- `DEBUG_SCP=1` debug SCP protocol
+- `SSH_USERNAME` username for iPhone SSH, default to `root`
+- `SSH_PASSWORD` password for iPhone SSH, default to `alpine`
+- `SSH_PORT` port for iPhone SSH. If not given, bagbak will scan port 22 (OpenSSH) and port 44 (Dropbear)
 
 Example:
 
-* `bagbak -l` to list all apps
-* `bagbak --raw Chrome` to dump the app to current directory
-* `bagbak com.google.chrome.ios` to dump app to `com.google.chrome.ios-[version].ipa`
+- `bagbak -l` to list all apps
+- `bagbak --raw Chrome` to dump the app to current directory
+- `bagbak com.google.chrome.ios` to dump app to `com.google.chrome.ios-[version].ipa`
 
 ## 国内用户 frida 安装失败问题
 

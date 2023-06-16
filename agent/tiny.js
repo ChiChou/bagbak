@@ -2,7 +2,7 @@ const HIGH_WATER_MARK = 1024 * 1024;
 
 /**
  * @typedef MachO
- * 
+ *
  * @property {string} path
  * @property {number} type
  * @property {EncryptInfo} encryptInfo
@@ -11,7 +11,7 @@ const HIGH_WATER_MARK = 1024 * 1024;
 
 /**
  * @typedef EncryptInfo
- * 
+ *
  * @property {number} offset
  * @property {number} size
  * @property {number} id
@@ -20,8 +20,8 @@ const HIGH_WATER_MARK = 1024 * 1024;
 rpc.exports = {
   /**
    * @param {string} root
-   * @param {[string, MachO][]} dylibs 
-   * @returns 
+   * @param {[string, MachO][]} dylibs
+   * @returns
    */
   newDump(root, dylibs) {
     for (const [relative, info] of dylibs) {
@@ -52,9 +52,12 @@ rpc.exports = {
         let remain = size;
         let p = mod.base.add(offset);
 
-        for (let i = 0; i < steps; i++) {          
+        for (let i = 0; i < steps; i++) {
           console.log('ptr', p);
-          send({ event: 'trunk', fileOffset, name: relative }, p.readByteArray(HIGH_WATER_MARK));
+          send(
+            { event: 'trunk', fileOffset, name: relative },
+            p.readByteArray(HIGH_WATER_MARK)
+          );
           recv('ack').wait();
 
           remain -= HIGH_WATER_MARK;
@@ -64,19 +67,29 @@ rpc.exports = {
 
         if (remain > 0) {
           fileOffset += HIGH_WATER_MARK;
-          send({ event: 'trunk', fileOffset, name: relative }, p.readByteArray(remain));
+          send(
+            { event: 'trunk', fileOffset, name: relative },
+            p.readByteArray(remain)
+          );
           recv('ack').wait();
 
           const zeroFilled = new ArrayBuffer(12); // cryptoff, cryptsize, cryptid
-          send({ event: 'trunk', fileOffset: info.encCmdOffset + 8, name: relative }, zeroFilled);
+          send(
+            {
+              event: 'trunk',
+              fileOffset: info.encCmdOffset + 8,
+              name: relative,
+            },
+            zeroFilled
+          );
           recv('ack').wait();
         }
       }
 
-      send({ event: 'end', name: relative});
+      send({ event: 'end', name: relative });
       recv('ack').wait();
     }
 
     return 'ok';
-  }
-}
+  },
+};
