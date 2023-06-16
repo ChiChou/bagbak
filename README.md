@@ -59,6 +59,15 @@ Options:
   -h, --help             display help for command
 ```
 
+Environments variables:
+
+* `DEBUG=1` enable debug output for troubleshooting
+* `DEBUG_SCP=1` debug SCP protocol
+* `SSH_USERNAME` username for iPhone SSH, default to `root`
+* `SSH_PASSWORD` password for iPhone SSH, default to `alpine`
+* `SSH_PORT` port for iPhone SSH. If not given, bagbak will scan port 22 (OpenSSH) and port 44 (Dropbear)
+
+
 Example:
 
 * `bagbak -l` to list all apps

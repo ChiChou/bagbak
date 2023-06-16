@@ -27,6 +27,11 @@ export class BagBak extends EventEmitter {
   #app = null;
 
   /**
+   * @type {import("ssh2").ConnectConfig}
+   */
+  #auth;
+
+  /**
    * constructor
    * @param {import("frida").Device} device 
    * @param {import("frida").Application} app
@@ -36,6 +41,21 @@ export class BagBak extends EventEmitter {
 
     this.#app = app;
     this.#device = device;
+
+    if ('SSH_USERNAME' in process.env && 'SSH_PASSWORD' in process.env) {
+      const { SSH_USERNAME, SSH_PASSWORD } = process.env;
+      this.#auth = {
+        username: SSH_USERNAME,
+        password: SSH_PASSWORD
+      };
+    } else if ('SSH_PRIVATE_KEY' in process.env) {
+      throw new Error('key auth not supported yet');
+    } else {
+      this.#auth = {
+        username: 'root',
+        password: 'alpine'
+      };
+    }
   }
 
   /**
@@ -44,7 +64,7 @@ export class BagBak extends EventEmitter {
    * @param {import("fs").PathLike} dest 
    */
   async #copyToLocal(src, dest) {
-    const client = await connect(this.#device);
+    const client = await connect(this.#device, this.#auth);
 
     const pull = new Pull(client, src, dest, true);
     const events = ['download', 'mkdir', 'progress', 'done'];
@@ -70,7 +90,7 @@ export class BagBak extends EventEmitter {
       return; // do not apply to system apps
     }
 
-    const client = await connect(this.#device);
+    const client = await connect(this.#device, this.#auth);
     const cmd = `chmod +xX ${quote(path)}`;
     return new Promise((resolve, reject) => {
       client.exec(cmd, (err, stream) => {
