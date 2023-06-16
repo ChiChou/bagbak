@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo 'Not supported'",
+    "prettier": "prettier --write .",
     "types": "npx -p typescript tsc index.js --declaration --allowJs --emitDeclarationOnly --outDir types --lib esnext",
     "prepare": "husky install"
   },
