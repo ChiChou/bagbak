@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo 'Not supported'",
-    "types": "npx -p typescript tsc index.js --declaration --allowJs --emitDeclarationOnly --outDir types --lib esnext"
+    "types": "npx -p typescript tsc index.js --declaration --allowJs --emitDeclarationOnly --outDir types --lib esnext",
+    "prepare": "husky install"
+  },
+  "lint-staged": {
+    "**/*": "prettier --write --ignore-unknown"
   },
   "author": "CodeColorist",
   "license": "MIT",
@@ -23,7 +27,10 @@
   "devDependencies": {
     "@types/frida-gum": "^18.3.1",
     "@types/node": "^18.15.11",
-    "frida-compile": "^10.0.0"
+    "frida-compile": "^10.0.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.2.2",
+    "prettier": "2.8.8"
   },
   "dependencies": {
     "bplist-creator": "^0.1.1",
