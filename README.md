@@ -8,6 +8,8 @@
 
 Yet another frida based App decryptor. Requires jailbroken iOS device and [frida.re](https://www.frida.re/)
 
+Only tested on iOS 14 (unco0ver) and iOS 16 (checkm8). Dopamine seems to have issues on process spawn and I don't have such device to debug.
+
 ![demo](images/screen.gif)
 
 *The name of this project doesn't have any meaning. I was just listening to that song while typing.*
