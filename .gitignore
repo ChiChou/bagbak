@@ -3,6 +3,9 @@
 dump/
 output/
 
+*.app/
+*.ipa
+
 agent.dist.js
 
 .DS_Store
