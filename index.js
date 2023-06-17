@@ -135,7 +135,7 @@ export class BagBak extends EventEmitter {
 
     const localRoot = join(parent, basename(remoteRoot));
     if (await directoryExists(localRoot) && !override)
-      throw new Error('Destination already exists');
+      throw new Error('Destination already exists, use -f to override');
 
     this.emit('sshBegin');
     await this.#copyToLocal(remoteRoot, parent);
@@ -156,9 +156,31 @@ export class BagBak extends EventEmitter {
       debug('main executable =>', mainExecutable);
       await this.#executableWorkaround(mainExecutable);
 
-      const pid = await this.#device.spawn(mainExecutable);
+      /**
+       * @type {number}
+       */
+      let pid;
+      try {
+        pid = await this.#device.spawn(mainExecutable);
+      } catch(e) {
+        console.error(`Failed to spawn executable at ${mainExecutable}, skipping...`);
+        console.error(`Warning: Unable to dump ${dylibs.map(([path, _]) => path).join('\n')}`);
+        continue;
+      }
+
       debug('pid =>', pid);
-      const session = await this.#device.attach(pid);
+
+      /**
+       * @type {import("frida").Session}
+       */
+      let session;
+      try {
+        session = await this.#device.attach(pid);
+      } catch(e) {
+        console.error(`Failed to attach to pid ${pid}, skipping...`);
+        console.error(`Warning: Unable to dump ${dylibs.map(([path, _]) => path).join('\n')}`);
+        continue;
+      }
       const script = await session.createScript(agentScript.toString());
       script.logHandler = (level, text) => {
         debug('[script log]', level, text); // todo: color
