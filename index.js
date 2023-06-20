@@ -186,6 +186,10 @@ export class BagBak extends EventEmitter {
         debug('[script log]', level, text); // todo: color
       };
 
+      session.detached.connect((reason, crash) => {
+        debug('session detached', reason, crash);
+      });
+
       /**
        * @param {function(msg: import("frida").Message, data: ArrayBuffer): void} handler
        */
