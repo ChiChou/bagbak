@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { mkdir, open, rm } from "fs/promises";
+import { mkdir, open, rm, rename } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, join, resolve } from "path";
 
@@ -250,8 +250,14 @@ export class BagBak extends EventEmitter {
         suggested) :
       defaultTemplate;
 
+    if (!ipa.endsWith('.ipa')) 
+      throw new Error(`Invalid archive name ${suggested}, must end with .ipa`);
+
     const full = resolve(process.cwd(), ipa);
-    await zip(full, payload);
+    const z = full.slice(0, -4) + '.zip';
+    await zip(z, payload);
+    debug('Created zip archive', z);
+    await rename(z, ipa);
 
     return ipa;
   }
