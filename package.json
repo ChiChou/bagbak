@@ -1,6 +1,6 @@
 {
   "name": "bagbak",
-  "version": "3.0.17",
+  "version": "3.0.18",
   "description": "Dump iOS app from a jailbroken device, based on frida.re",
   "main": "index.js",
   "scripts": {
