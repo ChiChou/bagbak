@@ -42,7 +42,9 @@
   },
   "keywords": [
     "ios",
-    "dump"
+    "reverse-engineering",
+    "frida",
+    "jailbreak"
   ],
   "bugs": {
     "url": "https://github.com/ChiChou/bagbak/issues"
