@@ -139,6 +139,14 @@ export class BagBak extends EventEmitter {
 
     this.emit('sshBegin');
     await this.#copyToLocal(remoteRoot, parent);
+
+    // exclude SC_Info, etc.
+    const exclude = ['SC_Info', 'iTunesMetadata.plist', 'embedded.mobileprovision', '_CodeSignature'];
+    for (const name of exclude) {
+      await rm(join(localRoot, name), { recursive: true, force: true })
+        .catch(() => { });
+    }
+
     this.emit('sshFinish');
 
     // find all encrypted binaries
