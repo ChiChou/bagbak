@@ -14,6 +14,8 @@ Only tested on iOS 14 (unc0ver) and iOS 16 (checkm8). Dopamine seems to have iss
 
 *The name of this project doesn't have any meaning. I was just listening to that song while typing.*
 
+[FAQ](https://github.com/ChiChou/bagbak/wiki#faq)
+
 ## Prerequisites
 
 ### On device
