@@ -44,6 +44,7 @@ async function main() {
   program
     .name('bagbak')
     .option('-l, --list', 'list apps')
+    .option('-j, --json', 'output as json (only works with --list)')
 
     .option('-U, --usb', 'connect to USB device (default)')
     .option('-R, --remote', 'connect to remote frida-server')
@@ -72,6 +73,11 @@ async function main() {
 
   if (program.list) {
     const apps = await enumerateApps(device);
+
+    if (program.json) {
+      console.log(JSON.stringify(apps, null, 2));
+      return;
+    }
 
     const verWidth = Math.max(...apps.map(app => app.parameters?.version?.length || 0));
     const idWidth = Math.max(...apps.map(app => app.identifier.length));
