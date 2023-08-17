@@ -3,7 +3,7 @@ import { mkdir, open, rm, rename } from 'fs/promises';
 import { tmpdir } from 'os';
 import { basename, join, resolve } from 'path';
 
-import { findEncryptedBinaries } from './lib/scan.js';
+import { AppBundleVisitor } from './lib/scan.js';
 import { Pull, quote } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
 import { debug, directoryExists, readFromPackage } from './lib/utils.js';
@@ -149,8 +149,12 @@ export class BagBak extends EventEmitter {
 
     this.emit('sshFinish');
 
-    // find all encrypted binaries
-    const map = await findEncryptedBinaries(localRoot);
+    const visitor = new AppBundleVisitor(localRoot);
+    // find all encrypted binaries.
+    // side effects: it will also remove some unwanted files
+    // todo: refactor to 2 passes
+    const map = await visitor.encryptedBinaries();
+
     debug('encrypted binaries', map);
     const agentScript = await readFromPackage('agent', 'tiny.js');
     /**
