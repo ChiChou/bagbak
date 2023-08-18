@@ -140,19 +140,10 @@ export class BagBak extends EventEmitter {
     this.emit('sshBegin');
     await this.#copyToLocal(remoteRoot, parent);
 
-    // exclude SC_Info, etc.
-    const exclude = ['SC_Info', 'iTunesMetadata.plist', 'embedded.mobileprovision', '_CodeSignature'];
-    for (const name of exclude) {
-      await rm(join(localRoot, name), { recursive: true, force: true })
-        .catch(() => { });
-    }
-
     this.emit('sshFinish');
 
     const visitor = new AppBundleVisitor(localRoot);
-    // find all encrypted binaries.
-    // side effects: it will also remove some unwanted files
-    // todo: refactor to 2 passes
+    await visitor.removeUnwanted();
     const map = await visitor.encryptedBinaries();
 
     debug('encrypted binaries', map);
