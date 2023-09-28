@@ -125,9 +125,10 @@ export class BagBak extends EventEmitter {
    * dump raw app bundle to directory (no ipa)
    * @param {import("fs").PathLike} parent path
    * @param {boolean} override whether to override existing files
+   * @param {boolean} abortOnError whether to abort on error
    * @returns {Promise<string>}
    */
-  async dump(parent, override = false) {
+  async dump(parent, override = false, abortOnError = false) {
     if (!await directoryExists(parent))
       throw new Error('Output directory does not exist');
 
@@ -169,6 +170,8 @@ export class BagBak extends EventEmitter {
       try {
         pid = await this.#device.spawn(mainExecutable);
       } catch(e) {
+        if (abortOnError) throw e;
+
         console.error(`Failed to spawn executable at ${mainExecutable}, skipping...`);
         console.error(`Warning: Unable to dump ${dylibs.map(([path, _]) => path).join('\n')}`);
         continue;
@@ -183,6 +186,8 @@ export class BagBak extends EventEmitter {
       try {
         session = await this.#device.attach(pid);
       } catch(e) {
+        if (abortOnError) throw e;
+
         console.error(`Failed to attach to pid ${pid}, skipping...`);
         console.error(`Warning: Unable to dump ${dylibs.map(([path, _]) => path).join('\n')}`);
         continue;
