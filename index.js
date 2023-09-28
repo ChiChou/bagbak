@@ -42,8 +42,11 @@ export class BagBak extends EventEmitter {
     this.#app = app;
     this.#device = device;
 
-    if ('SSH_USERNAME' in process.env && 'SSH_PASSWORD' in process.env) {
+    if ('SSH_USERNAME' in process.env || 'SSH_PASSWORD' in process.env) {
       const { SSH_USERNAME, SSH_PASSWORD } = process.env;
+      if (!SSH_USERNAME || !SSH_PASSWORD)
+        throw new Error('You have to provide both SSH_USERNAME and SSH_PASSWORD');
+
       this.#auth = {
         username: SSH_USERNAME,
         password: SSH_PASSWORD
