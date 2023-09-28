@@ -6,7 +6,7 @@ import { basename, join, resolve } from 'path';
 import { AppBundleVisitor } from './lib/scan.js';
 import { Pull, quote } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
-import { debug, directoryExists, readFromPackage } from './lib/utils.js';
+import { debug, directoryExists, isRootless, readFromPackage } from './lib/utils.js';
 import zip from './lib/zip.js';
 
 
@@ -42,20 +42,30 @@ export class BagBak extends EventEmitter {
     this.#app = app;
     this.#device = device;
 
-    if ('SSH_USERNAME' in process.env && 'SSH_PASSWORD' in process.env) {
-      const { SSH_USERNAME, SSH_PASSWORD } = process.env;
-      this.#auth = {
-        username: SSH_USERNAME,
-        password: SSH_PASSWORD
-      };
-    } else if ('SSH_PRIVATE_KEY' in process.env) {
-      throw new Error('key auth not supported yet');
+    let SSH_USERNAME;
+    if ('SSH_USERNAME' in process.env) {
+      SSH_USERNAME = process.env.SSH_USERNAME;
+    } else if (isRootless(this.#device)) {
+      SSH_USERNAME = 'mobile';
     } else {
-      this.#auth = {
-        username: 'root',
-        password: 'alpine'
-      };
+      SSH_USERNAME = 'root';
     }
+
+    let SSH_PASSWORD;
+    if ('SSH_PASSWORD' in process.env) {
+      SSH_PASSWORD = process.env.SSH_PASSWORD;
+    } else {
+      SSH_PASSWORD = 'alpine';
+    }
+
+    if ('SSH_PRIVATE_KEY' in process.env) {
+      throw new Error('key auth not supported yet');
+    }
+
+    this.#auth = {
+      username: SSH_USERNAME,
+      password: SSH_PASSWORD
+    };
   }
 
   /**
