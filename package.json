@@ -16,6 +16,8 @@
   "files": [
     "index.js",
     "/agent/inject.js",
+    "/agent/installer.js",
+    "/agent/launchd.js",
     "/bin",
     "/lib/"
   ],
