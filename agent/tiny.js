@@ -53,7 +53,7 @@ rpc.exports = {
         let remain = size;
         let p = mod.base.add(offset);
 
-        for (let i = 0; i < steps; i++) {          
+        for (let i = 0; i < steps; i++) {
           console.log('ptr', p);
           send({ event: 'trunk', fileOffset, name: relative }, p.readByteArray(HIGH_WATER_MARK));
           recv('ack').wait();
@@ -68,12 +68,12 @@ rpc.exports = {
           recv('ack').wait();
         }
       }
-      
+
       const zeroFilled = new ArrayBuffer(12); // cryptoff, cryptsize, cryptid
       send({ event: 'trunk', fileOffset: info.encCmdOffset + 8, name: relative }, zeroFilled);
       recv('ack').wait();
 
-      send({ event: 'end', name: relative});
+      send({ event: 'end', name: relative });
       recv('ack').wait();
     }
 
