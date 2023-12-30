@@ -15,7 +15,7 @@
   "types": "types/index.d.ts",
   "files": [
     "index.js",
-    "/agent/tiny.js",
+    "/agent/inject.js",
     "/bin",
     "/lib/"
   ],
@@ -24,7 +24,7 @@
   },
   "type": "module",
   "devDependencies": {
-    "@types/frida-gum": "^18.3.1",
+    "@types/frida-gum": "^18.5.1",
     "@types/node": "^18.15.11"
   },
   "dependencies": {

@@ -151,7 +151,7 @@ export class BagBak extends EventEmitter {
     const map = await visitor.encryptedBinaries();
 
     debug('encrypted binaries', map);
-    const agentScript = await readFromPackage('agent', 'tiny.js');
+    const agentScript = await readFromPackage('agent', 'inject.js');
     /**
      * @type {Map<string, import("fs/promises").FileHandle>}
      */
