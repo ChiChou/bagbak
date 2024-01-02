@@ -83,36 +83,6 @@ export class BagBak extends EventEmitter {
     }
   }
 
-  /**
-   * hack: some extension is not executable
-   * @param {string} path 
-   * @returns 
-   */
-  async #executableWorkaround(path) {
-    if (!path.startsWith('/private/var/containers/Bundle/Application/')) {
-      return; // do not apply to system apps
-    }
-
-    const client = await connect(this.#device, this.#auth);
-    const cmd = `chmod +xX ${quote(path)}`;
-    return new Promise((resolve, reject) => {
-      client.exec(cmd, (err, stream) => {
-        if (err) return reject(err);
-        stream
-          .on('close', (code, signal) => {
-            client.end();
-            resolve();
-
-            if (code !== 0) {
-              console.error(`failed to execute "${cmd}", exited with code ${code}`);
-            }
-          })
-          .on('data', () => { }) // this handler is a must, otherwise the stream will hang
-          .stderr.pipe(process.stderr); // proxy stderr
-      });
-    });
-  }
-
   get bundle() {
     return this.#app.identifier;
   }
@@ -131,6 +101,17 @@ export class BagBak extends EventEmitter {
   async dump(parent, override = false, abortOnError = false) {
     if (!await directoryExists(parent))
       throw new Error('Output directory does not exist');
+
+    const launchdSession = await this.#device.attach(1);
+    const launchdScript = await launchdSession.createScript(
+      await readFromPackage('agent', 'launchd.js'));
+    await launchdScript.load();
+
+    await this.#device.openChannel(`lockdown:com.apple.mobile.installation_proxy`);
+    const installerSession = await this.#device.attach('mobile_installation_proxy');
+    const installerScript = await installerSession.createScript(
+      await readFromPackage('agent', 'installer.js'));
+    await installerScript.load();
 
     // fist, copy directory to local
     const remoteRoot = this.remote;
@@ -157,19 +138,27 @@ export class BagBak extends EventEmitter {
      */
     const fileHandles = new Map();
 
+    /**
+     * @type {Set<number>}
+     */
+    const childPids = new Set();
+
     // execute dump
     for (const [scope, dylibs] of map.entries()) {
       const mainExecutable = [remoteRoot, scope].join('/');
       debug('main executable =>', mainExecutable);
-      await this.#executableWorkaround(mainExecutable);
+
+      if (mainExecutable.startsWith('/private/var/containers/Bundle/Application/')) {
+        installerScript.exports.chmod(mainExecutable);
+      }
 
       /**
        * @type {number}
        */
       let pid;
       try {
-        pid = await this.#device.spawn(mainExecutable);
-      } catch(e) {
+        pid = await launchdScript.exports.spawn(mainExecutable);
+      } catch (e) {
         if (abortOnError) throw e;
 
         console.error(`Failed to spawn executable at ${mainExecutable}, skipping...`);
@@ -179,13 +168,15 @@ export class BagBak extends EventEmitter {
 
       debug('pid =>', pid);
 
+      childPids.add(pid);
+
       /**
        * @type {import("frida").Session}
        */
       let session;
       try {
         session = await this.#device.attach(pid);
-      } catch(e) {
+      } catch (e) {
         if (abortOnError) throw e;
 
         console.error(`Failed to attach to pid ${pid}, skipping...`);
@@ -237,6 +228,17 @@ export class BagBak extends EventEmitter {
       await this.#device.kill(pid);
     }
 
+    // cleanup
+    for (const pid of childPids) {
+      const zombieKilled = await launchdScript.exports.cleanup(pid);
+      debug('kill zombie pid', pid, '=>', zombieKilled ? 'OK' : 'failed');
+    }
+
+    await launchdScript.unload();
+    await launchdSession.detach();
+    await installerScript.unload();
+    await installerSession.detach();
+
     return localRoot;
   }
 
@@ -261,7 +263,7 @@ export class BagBak extends EventEmitter {
         suggested) :
       defaultTemplate;
 
-    if (!ipa.endsWith('.ipa')) 
+    if (!ipa.endsWith('.ipa'))
       throw new Error(`Invalid archive name ${suggested}, must end with .ipa`);
 
     const full = resolve(process.cwd(), ipa);
