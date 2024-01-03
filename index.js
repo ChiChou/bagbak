@@ -107,11 +107,12 @@ export class BagBak extends EventEmitter {
       await readFromPackage('agent', 'launchd.js'));
     await launchdScript.load();
 
-    await this.#device.openChannel(`lockdown:com.apple.mobile.installation_proxy`);
-    const installerSession = await this.#device.attach('mobile_installation_proxy');
-    const installerScript = await installerSession.createScript(
-      await readFromPackage('agent', 'installer.js'));
-    await installerScript.load();
+    // for com.apple.private.security.container-manager entitlement
+    const keybagdPid = await launchdScript.exports.spawn('/usr/libexec/keybagd');
+    const keybagdSession = await this.#device.attach(keybagdPid);
+    const keybagdScript = await keybagdSession.createScript(
+      await readFromPackage('agent', 'keybagd.js'));
+    await keybagdScript.load();
 
     // fist, copy directory to local
     const remoteRoot = this.remote;
@@ -149,7 +150,7 @@ export class BagBak extends EventEmitter {
       debug('main executable =>', mainExecutable);
 
       if (mainExecutable.startsWith('/private/var/containers/Bundle/Application/')) {
-        installerScript.exports.chmod(mainExecutable);
+        keybagdScript.exports.chmod(mainExecutable);
       }
 
       /**
@@ -228,16 +229,18 @@ export class BagBak extends EventEmitter {
       await this.#device.kill(pid);
     }
 
+    await keybagdScript.unload();
+    await keybagdSession.detach();
+    await this.#device.kill(keybagdPid);
+    childPids.add(keybagdPid);
+
     // cleanup
     for (const pid of childPids) {
       const zombieKilled = await launchdScript.exports.cleanup(pid);
       debug('kill zombie pid', pid, '=>', zombieKilled ? 'OK' : 'failed');
     }
-
     await launchdScript.unload();
     await launchdSession.detach();
-    await installerScript.unload();
-    await installerSession.detach();
 
     return localRoot;
   }
