@@ -1,6 +1,6 @@
 {
   "name": "bagbak",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "Dump iOS app from a jailbroken device, based on frida.re",
   "main": "index.js",
   "scripts": {
@@ -16,7 +16,7 @@
   "files": [
     "index.js",
     "/agent/inject.js",
-    "/agent/installer.js",
+    "/agent/keybagd.js",
     "/agent/launchd.js",
     "/bin",
     "/lib/"
