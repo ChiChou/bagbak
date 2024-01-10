@@ -230,8 +230,6 @@ export class BagBak extends EventEmitter {
 
     await SpringBoardScript.unload();
     await SpringBoardSession.detach();
-    await this.#device.kill(SpringBoard);
-    childPids.add(SpringBoard);
 
     // cleanup
     for (const pid of childPids) {
