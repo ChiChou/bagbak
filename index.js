@@ -108,11 +108,10 @@ export class BagBak extends EventEmitter {
     await launchdScript.load();
 
     // for com.apple.private.security.container-manager entitlement
-    const keybagdPid = await launchdScript.exports.spawn('/usr/libexec/keybagd');
-    const keybagdSession = await this.#device.attach(keybagdPid);
-    const keybagdScript = await keybagdSession.createScript(
-      await readFromPackage('agent', 'keybagd.js'));
-    await keybagdScript.load();
+    const SpringBoardSession = await this.#device.attach('SpringBoard');
+    const SpringBoardScript = await SpringBoardSession.createScript(
+      await readFromPackage('agent', 'SpringBoard.js'));
+    await SpringBoardScript.load();
 
     // fist, copy directory to local
     const remoteRoot = this.remote;
@@ -150,7 +149,7 @@ export class BagBak extends EventEmitter {
       debug('main executable =>', mainExecutable);
 
       if (mainExecutable.startsWith('/private/var/containers/Bundle/Application/')) {
-        keybagdScript.exports.chmod(mainExecutable);
+        SpringBoardScript.exports.chmod(mainExecutable);
       }
 
       /**
@@ -229,10 +228,10 @@ export class BagBak extends EventEmitter {
       await this.#device.kill(pid);
     }
 
-    await keybagdScript.unload();
-    await keybagdSession.detach();
-    await this.#device.kill(keybagdPid);
-    childPids.add(keybagdPid);
+    await SpringBoardScript.unload();
+    await SpringBoardSession.detach();
+    await this.#device.kill(SpringBoard);
+    childPids.add(SpringBoard);
 
     // cleanup
     for (const pid of childPids) {
