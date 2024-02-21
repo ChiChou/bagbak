@@ -7,6 +7,6 @@ rpc.exports.chmod = function (path) {
   // get current mode and set executable bit
   if (ret !== 0) throw new Error('stat failed');
   let mode = buf.readU32();
-  mode |= 0o111;
+  mode |= 0o755;
   return chmod(Memory.allocUtf8String(path), mode);
 }
