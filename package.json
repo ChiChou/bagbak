@@ -16,8 +16,8 @@
   "files": [
     "index.js",
     "/agent/inject.js",
-    "/agent/keybagd.js",
-    "/agent/launchd.js",
+    "/agent/SpringBoard.js",
+    "/agent/pkd.js",
     "/bin",
     "/lib/"
   ],
