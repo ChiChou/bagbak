@@ -4,7 +4,7 @@ import { tmpdir } from 'os';
 import { basename, join, resolve } from 'path';
 
 import { AppBundleVisitor } from './lib/scan.js';
-import { Pull, quote } from './lib/scp.js';
+import { Pull } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
 import { debug, directoryExists, readFromPackage } from './lib/utils.js';
 import zip from './lib/zip.js';
@@ -102,16 +102,18 @@ export class BagBak extends EventEmitter {
     if (!await directoryExists(parent))
       throw new Error('Output directory does not exist');
 
-    const launchdSession = await this.#device.attach(1);
-    const launchdScript = await launchdSession.createScript(
-      await readFromPackage('agent', 'launchd.js'));
-    await launchdScript.load();
-
-    // for com.apple.private.security.container-manager entitlement
     const SpringBoardSession = await this.#device.attach('SpringBoard');
     const SpringBoardScript = await SpringBoardSession.createScript(
       await readFromPackage('agent', 'SpringBoard.js'));
     await SpringBoardScript.load();
+
+    const pkdSession = await this.#device.attach('pkd');
+    const pkdScript = await pkdSession.createScript(
+      await readFromPackage('agent', 'pkd.js'));
+    await pkdScript.load();
+    await pkdScript.exports.skipPkdValidationFor(SpringBoardSession.pid);
+
+    const plugins = await SpringBoardScript.exports.plugins(this.#app.identifier);
 
     // fist, copy directory to local
     const remoteRoot = this.remote;
@@ -133,42 +135,22 @@ export class BagBak extends EventEmitter {
 
     debug('encrypted binaries', map);
     const agentScript = await readFromPackage('agent', 'inject.js');
-    /**
-     * @type {Map<string, import("fs/promises").FileHandle>}
-     */
+
+    /** @type {Map<string, import("fs/promises").FileHandle>} */
     const fileHandles = new Map();
 
     /**
-     * @type {Set<number>}
+     * @param {number} pid
+     * @param {[import("fs").PathLike, import("./macho").MachO][]} dylibs
+     * @param {import("fs").PathLike}
+     * @returns {Promise<boolean>}
      */
-    const childPids = new Set();
-
-    // execute dump
-    for (const [scope, dylibs] of map.entries()) {
-      const mainExecutable = [remoteRoot, scope].join('/');
-      debug('main executable =>', mainExecutable);
-
-      if (mainExecutable.startsWith('/private/var/containers/Bundle/Application/')) {
-        SpringBoardScript.exports.chmod(mainExecutable);
-      }
-
-      /**
-       * @type {number}
-       */
-      let pid;
-      try {
-        pid = await launchdScript.exports.spawn(mainExecutable);
-      } catch (e) {
-        if (abortOnError) throw e;
-
-        console.error(`Failed to spawn executable at ${mainExecutable}, skipping...`);
-        console.error(`Warning: Unable to dump ${dylibs.map(([path, _]) => path).join('\n')}`);
-        continue;
-      }
-
+    const task = async (pid, executable, dylibs) => {
       debug('pid =>', pid);
+      await this.#device.resume(pid);
 
-      childPids.add(pid);
+      const mainExecutable = join(localRoot, executable);
+      debug('main executable =>', mainExecutable);
 
       /**
        * @type {import("frida").Session}
@@ -181,8 +163,9 @@ export class BagBak extends EventEmitter {
 
         console.error(`Failed to attach to pid ${pid}, skipping...`);
         console.error(`Warning: Unable to dump ${dylibs.map(([path, _]) => path).join('\n')}`);
-        continue;
+        return false;
       }
+
       const script = await session.createScript(agentScript.toString());
       script.logHandler = (level, text) => {
         debug('[script log]', level, text); // todo: color
@@ -226,18 +209,35 @@ export class BagBak extends EventEmitter {
       await script.unload();
       await session.detach();
       await this.#device.kill(pid);
+
+      return true;
+    }
+
+    // dump main executable
+    {
+      const { identifier } = this.#app;
+      const pid = await this.#device.spawn(identifier);
+      const info = map.get(identifier);
+      if (!info) throw new Error('Unable to find main executable');
+
+      const { dylibs, executable } = info;
+      await task(pid, executable, dylibs);
+    }
+
+    // dump plugins
+    for (const pluginId of plugins) {
+      const pid = await SpringBoardScript.exports.run(pluginId);
+      const info = map.get(pluginId);
+      if (!info) throw new Error(`Unable to find plugin info for ${pluginId}`);
+      const { dylibs, executable } = info;
+      await task(pid, executable, dylibs);
     }
 
     await SpringBoardScript.unload();
     await SpringBoardSession.detach();
 
-    // cleanup
-    for (const pid of childPids) {
-      const zombieKilled = await launchdScript.exports.cleanup(pid);
-      debug('kill zombie pid', pid, '=>', zombieKilled ? 'OK' : 'failed');
-    }
-    await launchdScript.unload();
-    await launchdSession.detach();
+    await pkdScript.unload();
+    await pkdSession.detach();
 
     return localRoot;
   }
