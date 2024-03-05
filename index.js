@@ -147,7 +147,6 @@ export class BagBak extends EventEmitter {
      */
     const task = async (pid, executable, dylibs) => {
       debug('pid =>', pid);
-      await this.#device.resume(pid);
 
       const mainExecutable = join(localRoot, executable);
       debug('main executable =>', mainExecutable);
@@ -221,6 +220,7 @@ export class BagBak extends EventEmitter {
       if (!info) throw new Error('Unable to find main executable');
 
       const { dylibs, executable } = info;
+      await this.#device.resume(pid);
       await task(pid, executable, dylibs);
     }
 
