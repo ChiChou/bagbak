@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
-import { mkdir, open, rm, rename } from 'fs/promises';
-import { tmpdir } from 'os';
+import { mkdir, open, rm, rmdir, rename } from 'fs/promises';
 import { basename, join, resolve } from 'path';
 
 import { AppBundleVisitor } from './lib/scan.js';
@@ -248,7 +247,8 @@ export class BagBak extends EventEmitter {
    * @returns {Promise<string>} final path of ipa
    */
   async pack(suggested) {
-    const payload = join(tmpdir(), 'bagbak', this.bundle, 'Payload');
+    const DIR_NAME = '.bagbak'; // do not use tmpdir here, because sometimes it might be in different partition
+    const payload = join(DIR_NAME, this.bundle, 'Payload');
     await rm(payload, { recursive: true, force: true });
     await mkdir(payload, { recursive: true });
     await this.dump(payload, true);
@@ -271,6 +271,17 @@ export class BagBak extends EventEmitter {
     await zip(z, payload);
     debug('Created zip archive', z);
     await rename(z, ipa);
+
+    {
+      // remove artifact
+      const artifact = join(DIR_NAME, this.bundle);
+      await rm(artifact, { recursive: true, force: true })
+        .catch(error => {
+          debug(`Warning: failed to remove artifact directory ${artifact}`, error);
+        })
+        .then(() => rmdir(DIR_NAME))
+        .catch(_ => { /* ignore */ });
+    }
 
     return ipa;
   }
