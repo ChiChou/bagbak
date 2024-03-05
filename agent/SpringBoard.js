@@ -13,6 +13,7 @@ const xpc_dictionary_get_int64 = new NativeFunction(libxpc.findExportByName('xpc
 
 const xpc_array_create_empty = new NativeFunction(libxpc.findExportByName('xpc_array_create_empty'), 'pointer', []);
 const xpc_array_append_value = new NativeFunction(libxpc.findExportByName('xpc_array_append_value'), 'void', ['pointer', 'pointer']);
+const xpc_array_get_int64 = new NativeFunction(libxpc.findExportByName('xpc_array_get_int64'), 'int64', ['pointer', 'size_t']);
 
 const xpc_string_create = new NativeFunction(libxpc.findExportByName('xpc_string_create'), 'pointer', ['pointer']);
 const xpc_uuid_create = new NativeFunction(libxpc.findExportByName('xpc_uuid_create'), 'pointer', ['pointer']);
@@ -112,11 +113,14 @@ rpc.exports.run = function (pluginIdentifier) {
             return reject(new Error(`unexpected error returned from pkd ${xpcDescription(reply)}`));
 
           const pids = xpc_dictionary_get_value(reply, Memory.allocUtf8String('pids'));
-          if (pids.isNull())
-            return reject(new Error('pids is null'));
+          if (!pids.isNull())
+            return resolve(xpc_dictionary_get_int64(pids, Memory.allocUtf8String(pluginUUIDString)).toNumber());
+        
+          const pidarray = xpc_dictionary_get_value(reply, Memory.allocUtf8String('pidarray'));
+          if (!pidarray.isNull())
+            return resolve(xpc_array_get_int64(pidarray, 0).toNumber());
 
-          const pid = xpc_dictionary_get_int64(pids, Memory.allocUtf8String(pluginUUIDString));
-          resolve(pid.toNumber());
+          reject(new Error(`unknown schema for XPC reply: ${xpcDescription(reply)}`));
         }
       }));
     });
