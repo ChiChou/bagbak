@@ -216,18 +216,19 @@ export class BagBak extends EventEmitter {
       const { identifier } = this.#app;
       const pid = await this.#device.spawn(identifier);
       const info = map.get(identifier);
-      if (!info) throw new Error('Unable to find main executable');
 
-      const { dylibs, executable } = info;
-      await this.#device.resume(pid);
-      await task(pid, executable, dylibs);
+      if (info) {
+        const { dylibs, executable } = info;
+        await this.#device.resume(pid);
+        await task(pid, executable, dylibs);
+      }
     }
 
     // dump plugins
     for (const pluginId of plugins) {
-      const pid = await SpringBoardScript.exports.run(pluginId);
       const info = map.get(pluginId);
-      if (!info) throw new Error(`Unable to find plugin info for ${pluginId}`);
+      if (!info) continue;
+      const pid = await SpringBoardScript.exports.run(pluginId);
       const { dylibs, executable } = info;
       await task(pid, executable, dylibs);
     }
