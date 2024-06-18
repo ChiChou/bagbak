@@ -94,10 +94,9 @@ export class BagBak extends EventEmitter {
    * dump raw app bundle to directory (no ipa)
    * @param {import("fs").PathLike} parent path
    * @param {boolean} override whether to override existing files
-   * @param {boolean} abortOnError whether to abort on error
    * @returns {Promise<string>}
    */
-  async dump(parent, override = false, abortOnError = false) {
+  async dump(parent, override = false) {
     if (!await directoryExists(parent))
       throw new Error('Output directory does not exist');
 
@@ -153,17 +152,7 @@ export class BagBak extends EventEmitter {
       /**
        * @type {import("frida").Session}
        */
-      let session;
-      try {
-        session = await this.#device.attach(pid);
-      } catch (e) {
-        if (abortOnError) throw e;
-
-        console.error(`Failed to attach to pid ${pid}, skipping...`);
-        console.error(`Warning: Unable to dump ${dylibs.map(([path, _]) => path).join('\n')}`);
-        return false;
-      }
-
+      const session = await this.#device.attach(pid);
       const script = await session.createScript(agentScript.toString());
       script.logHandler = (level, text) => {
         debug('[script log]', level, text); // todo: color
@@ -214,12 +203,12 @@ export class BagBak extends EventEmitter {
     // dump main executable
     {
       const { identifier } = this.#app;
-      const pid = await this.#device.spawn(identifier);
       const info = map.get(identifier);
 
       if (info) {
         const { dylibs, executable } = info;
-        await this.#device.resume(pid);
+        const pid = await this.#device.spawn(identifier);
+        // await this.#device.resume(pid);
         await task(pid, executable, dylibs);
       }
     }
@@ -252,7 +241,7 @@ export class BagBak extends EventEmitter {
     const payload = join(DIR_NAME, this.bundle, 'Payload');
     await rm(payload, { recursive: true, force: true });
     await mkdir(payload, { recursive: true });
-    await this.dump(payload, true);
+    await this.dump(payload, true, true);
     debug('payload =>', payload);
 
     const ver = this.#app.parameters.version || 'Unknown';

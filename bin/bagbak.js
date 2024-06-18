@@ -55,7 +55,6 @@ async function main() {
     .option('-d, --debug', 'enable debug output')
     .option('-r, --raw', 'dump raw app bundle to directory (no ipa)')
     .option('-o, --output <output>', 'ipa filename or directory to dump to')
-    .option('--abort-on-error', 'abort on error')
     .usage('[bundle id or name]')
     .version(await version());
 
@@ -140,7 +139,7 @@ async function main() {
       })
 
     const saved = program.raw ?
-      await job.dump(program.output || '.', program.force, program.abortOnError) :
+      await job.dump(program.output || '.', program.force) :
       await job.pack(program.output);
 
     console.log(`Saved to ${chalk.yellow(saved)}`);
