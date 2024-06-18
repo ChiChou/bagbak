@@ -100,19 +100,6 @@ export class BagBak extends EventEmitter {
     if (!await directoryExists(parent))
       throw new Error('Output directory does not exist');
 
-    const SpringBoardSession = await this.#device.attach('SpringBoard');
-    const SpringBoardScript = await SpringBoardSession.createScript(
-      await readFromPackage('agent', 'SpringBoard.js'));
-    await SpringBoardScript.load();
-
-    const pkdSession = await this.#device.attach('pkd');
-    const pkdScript = await pkdSession.createScript(
-      await readFromPackage('agent', 'pkd.js'));
-    await pkdScript.load();
-    await pkdScript.exports.skipPkdValidationFor(SpringBoardSession.pid);
-
-    const plugins = await SpringBoardScript.exports.plugins(this.#app.identifier);
-
     // fist, copy directory to local
     const remoteRoot = this.remote;
     debug('remote root', remoteRoot);
@@ -200,33 +187,13 @@ export class BagBak extends EventEmitter {
       return true;
     }
 
-    // dump main executable
-    {
-      const { identifier } = this.#app;
-      const info = map.get(identifier);
-
-      if (info) {
-        const { dylibs, executable } = info;
-        const pid = await this.#device.spawn(identifier);
-        // await this.#device.resume(pid);
-        await task(pid, executable, dylibs);
-      }
+    for (const { dylibs, executable } of map.values()) {
+      const mainExecutable = [remoteRoot, executable].join('/');
+      debug('main executable =>', mainExecutable);
+      const pid = await this.#device.spawn(mainExecutable);
+      debug('spawned pid =>', pid);
+      await task(pid, mainExecutable, dylibs);
     }
-
-    // dump plugins
-    for (const pluginId of plugins) {
-      const info = map.get(pluginId);
-      if (!info) continue;
-      const pid = await SpringBoardScript.exports.run(pluginId);
-      const { dylibs, executable } = info;
-      await task(pid, executable, dylibs);
-    }
-
-    await SpringBoardScript.unload();
-    await SpringBoardSession.detach();
-
-    await pkdScript.unload();
-    await pkdSession.detach();
 
     return localRoot;
   }
