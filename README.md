@@ -20,13 +20,9 @@ Only tested on iOS 14 (unc0ver) and iOS 16 (checkm8). **Help wanted: Dopamine se
 
 ### On device
 
-With Cydia:
+With Cydia or Sileo:
 
 * [frida.re](https://www.frida.re/docs/ios/)
-
-Rootless:
-
-If your are using rootless jailbreak, another project of mine [fruity-frida](https://github.com/ChiChou/fruity-frida/) might help. Use the `run-frida-server` to automatically download, deploy and run frida-server on your device.
 
 ### On desktop
 
