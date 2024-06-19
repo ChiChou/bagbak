@@ -54,7 +54,7 @@ export class BagBak extends EventEmitter {
       throw new Error('key auth not supported yet');
     } else {
       this.#auth = {
-        username: 'root',
+        username: 'mobile',
         password: 'alpine'
       };
     }
