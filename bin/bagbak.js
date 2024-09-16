@@ -3,7 +3,7 @@
 import chalk from 'chalk';
 
 import { Command } from 'commander';
-import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Device } from 'frida';
+import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Device, Scope } from 'frida';
 
 import { BagBak } from '../index.js';
 import { enableDebug, version } from '../lib/utils.js';
@@ -72,7 +72,7 @@ async function main() {
   }
 
   if (program.list) {
-    const apps = await device.enumerateApplications();
+    const apps = await device.enumerateApplications({ scope: Scope.Metadata });
 
     if (program.json) {
       console.log(JSON.stringify(apps, null, 2));
@@ -104,7 +104,7 @@ async function main() {
   if (program.args.length === 1) {
     const target = program.args[0];
 
-    const apps = await device.enumerateApplications(device);
+    const apps = await device.enumerateApplications({ scope: Scope.Metadata });
     const app = apps.find(app => app.name === target || app.identifier === target);
     if (!app)
       throw new Error(`Unable to find app ${target}`);
