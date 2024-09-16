@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Device } from 'frida';
 
 import { BagBak } from '../index.js';
-import { enableDebug, enumerateApps, version } from '../lib/utils.js';
+import { enableDebug, version } from '../lib/utils.js';
 
 /**
  * 
@@ -72,7 +72,7 @@ async function main() {
   }
 
   if (program.list) {
-    const apps = await enumerateApps(device);
+    const apps = await device.enumerateApplications();
 
     if (program.json) {
       console.log(JSON.stringify(apps, null, 2));
@@ -104,7 +104,7 @@ async function main() {
   if (program.args.length === 1) {
     const target = program.args[0];
 
-    const apps = await enumerateApps(device);
+    const apps = await device.enumerateApplications(device);
     const app = apps.find(app => app.name === target || app.identifier === target);
     if (!app)
       throw new Error(`Unable to find app ${target}`);
