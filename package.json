@@ -30,12 +30,9 @@
     "@types/node": "^18.15.11"
   },
   "dependencies": {
-    "bplist-creator": "^0.1.1",
-    "bplist-parser": "^0.3.2",
     "chalk": "^4.0.0",
     "commander": "^5.1.0",
     "frida": "^16.5.1",
-    "plist": "^3.0.6",
     "ssh2": "^1.11.0"
   },
   "repository": {
