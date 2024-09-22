@@ -1,8 +1,11 @@
 import { EventEmitter } from 'events';
-import { mkdir, open, rm, rmdir, rename } from 'fs/promises';
+import { mkdir, rm, rmdir, rename, open } from 'fs/promises';
 import { basename, join, resolve } from 'path';
 
+import chalk from 'chalk';
+
 import { AppBundleVisitor } from './lib/scan.js';
+import { MH_EXECUTE } from './lib/macho.js';
 import { Pull } from './lib/scp.js';
 import { connect } from './lib/ssh.js';
 import { debug, directoryExists, readFromPackage } from './lib/utils.js';
@@ -18,16 +21,13 @@ import zip from './lib/zip.js';
  * main class
  */
 export class BagBak extends EventEmitter {
+  /** @type {import("frida").Device} */
   #device;
 
-  /**
-   * @type {import("frida").Application | null}
-   */
+  /** @type {import("frida").Application | null} */
   #app = null;
 
-  /**
-   * @type {import("ssh2").ConnectConfig}
-   */
+  /** @type {import("ssh2").ConnectConfig} */
   #auth;
 
   /**
@@ -116,31 +116,46 @@ export class BagBak extends EventEmitter {
 
     const visitor = new AppBundleVisitor(localRoot);
     await visitor.removeUnwanted();
-    const map = await visitor.encryptedBinaries();
 
-    debug('encrypted binaries', map);
+    /**
+     * @type {Map<string, import('./lib/macho.js').MachO>}
+     */
+    const tasks = new Map();
+    for await (const [relative, info, _] of visitor.visitRoot()) {
+      tasks.set(relative, info);
+    }
+
+    const pidChronod = await this.#device.getProcess('chronod')
+      .then(proc => proc.pid)
+      .catch(() => {
+        throw new Error(`chronod service is not running on the device.
+        At this moment, we haven't implemented the ability to start the service. 
+        Please start it manually with following command on the device and try again:
+        "launchctl kickstart -p user/foreground/com.apple.chronod"`);
+      });
+
     const agentScript = await readFromPackage('agent', 'inject.js');
+    const launchdScript = await readFromPackage('agent', 'runningboardd.js');
 
     /** @type {Map<string, import("fs/promises").FileHandle>} */
     const fileHandles = new Map();
 
     /**
      * @param {number} pid
-     * @param {[import("fs").PathLike, import("./macho").MachO][]} dylibs
-     * @param {import("fs").PathLike}
+     * @param {string[]} binaries
      * @returns {Promise<boolean>}
      */
-    const task = async (pid, executable, dylibs) => {
+    const task = async (pid, binaries) => {
       debug('pid =>', pid);
 
-      const mainExecutable = join(localRoot, executable);
-      debug('main executable =>', mainExecutable);
+      await this.ensurePidReady(pid);  // hack
 
-      /**
-       * @type {import("frida").Session}
-       */
+      /** @type {import("frida").Session} */
       const session = await this.#device.attach(pid);
+      /** @type {import("frida").Script} */
       const script = await session.createScript(agentScript.toString());
+      debug('session =>', session);
+
       script.logHandler = (level, text) => {
         debug('[script log]', level, text); // todo: color
       };
@@ -178,7 +193,7 @@ export class BagBak extends EventEmitter {
       });
 
       await script.load();
-      const result = await script.exports.newDump(remoteRoot, dylibs);
+      const result = await script.exports.dump(remoteRoot, binaries);
       debug('result =>', result);
       await script.unload();
       await session.detach();
@@ -187,15 +202,101 @@ export class BagBak extends EventEmitter {
       return true;
     }
 
-    for (const { dylibs, executable } of map.values()) {
-      const mainExecutable = [remoteRoot, executable].join('/');
-      debug('main executable =>', mainExecutable);
-      const pid = await this.#device.spawn(mainExecutable);
-      debug('spawned pid =>', pid);
-      await task(pid, mainExecutable, dylibs);
+    const runningboardd = await this.#device.attach('runningboardd');
+    const script = await runningboardd.createScript(launchdScript);
+    await script.load();
+
+    /** @type {ExtensionInfo[]} */
+    const extensions = await script.exports.extensions(this.#app.identifier);
+    debug('extensions', extensions);
+
+    /** @type {string} */
+    const mainAppBinary = this.#app.parameters.path + '/' + await script.exports.main(this.#app.identifier);
+    debug('main app binary', mainAppBinary);
+
+    /** @type {Map<string, Record<string, MachO>>} */
+    const groupByExtensions = new Map(extensions.map(ext => [ext.id, {}]));
+
+    /** @type {Record<string, MachO>} */
+    const binariesForMain = {};
+    for (const [relative, info] of tasks.entries()) {
+      const absolute = remoteRoot + '/' + relative;
+      const ext = extensions.find(ext => absolute.startsWith(ext.path));
+      if (ext) {
+        debug('scope for', chalk.green(relative), 'is', chalk.gray(ext.id));
+        groupByExtensions.get(ext.id)[relative] = info;
+        continue;
+      }
+
+      if (info.type === MH_EXECUTE && absolute !== mainAppBinary) {
+        console.error(chalk.red('Executable'), chalk.yellowBright(relative));
+        console.error(chalk.red('is not within any extension. It is very likely that one of the extensions requires a MinimumOSVersion'));
+        console.error(chalk.red('that is higher than your OS. This will result in a binary that is left encrypted.'));
+      } else {
+        debug('scope for', relative, 'is', chalk.green('main app'));
+        binariesForMain[relative] = info;
+      }
     }
 
+    debug('grouped by extensions', groupByExtensions);
+    debug('binaries for main app', binariesForMain);
+
+    // dump main app
+    if (Object.keys(binariesForMain).length) {
+      const pidApp = await script.exports.spawn(this.#app.identifier);
+      debug('spawned app pid =>', pidApp);
+      await task(pidApp, binariesForMain);
+    }
+
+    // dump extensions
+    for (const [extId, binaries] of groupByExtensions.entries()) {
+      if (Object.keys(binaries).length === 0) continue;
+
+      const pidExtension = await script.exports.kickstart(extId, pidChronod);
+      debug('extension', extId, pidExtension);
+      await task(pidExtension, binaries);
+    }
+
+    await script.unload();
+    await runningboardd.detach();
+
     return localRoot;
+  }
+
+  /**
+   * hack: there is some race condition, so wait 1 sec for frida to initialize
+   * need to find out the proper signal
+   * @param {number} pid 
+   */
+  async ensurePidReady(pid) {
+    for (let i = 0; i < 20; i++) {
+      try {
+        const session = await this.#device.attach(pid);
+        await session.detach();
+        return;
+      } catch (error) {
+        const message = `${error}`;
+        if (message.includes('Timeout was reached')) {
+          console.error(chalk.yellowBright(
+            `For timeout error, there is an edge case that some apps from appstore incorrectly
+            set the minimum os version requirement. For example WidgetKitExtension of Chrome app.
+            We are not able to dump such extensions, because they can not run on your device.`))
+
+          throw error;
+        } else if (message.includes('either refused to load frida-agent, or terminated during injection')) {
+          throw new Error(`Error: app process crashed, please try running the command again.
+            Original error message: ${error}`);
+        } else if (!message.includes('libSystem.B.dylib')) {
+          throw error; // ignore libSystem.B.dylib not found error
+        }
+        debug('retry', i, error);
+      }
+      // sleep
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // maxium retries reached (10s)
+    throw new Error(`attach to ${pid} timed out`);
   }
 
   /**

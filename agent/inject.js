@@ -17,26 +17,20 @@ const HIGH_WATER_MARK = 1024 * 1024;
  * @property {number} id
  */
 
+
 rpc.exports = {
   /**
    * @param {string} root
-   * @param {[string, MachO][]} dylibs 
-   * @returns 
+   * @param {Record<string, MachO>} binaries
+   * @returns {boolean}
    */
-  newDump(root, dylibs) {
-    for (const [relative, info] of dylibs) {
-      const basename = relative.split('/').pop();
-      const { offset, size, id } = info.encryptInfo;
+  dump(root, binaries) {
+    for (const [relative, info] of Object.entries(binaries)) {
+      console.log('decrypt', relative);
 
-      if (!id) continue;
-
-      const dylibPath = [root, relative].join('/');
-      if (!Process.findModuleByName(dylibPath)) {
-        console.log('load dylib', dylibPath);
-        Module.load(dylibPath);
-      }
-
-      const mod = Process.findModuleByName(basename.toString());
+      const { offset, size } = info.encryptInfo;
+      const absolute = root + '/' + relative;
+      const mod = Module.load(absolute);
       const fatOffset = Process.findRangeByAddress(mod.base).file.offset;
 
       send({ event: 'begin', name: relative, fatOffset });
@@ -77,6 +71,6 @@ rpc.exports = {
       recv('ack').wait();
     }
 
-    return 'ok';
+    return true;
   }
 }
