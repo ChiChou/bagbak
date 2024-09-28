@@ -10,7 +10,7 @@ Yet another frida based App decryptor. Requires jailbroken iOS device and [frida
 
 Tested on iOS 15 (Domapine) and iOS 16 (palera1n).
 
-![demo](images/screen.gif)
+[![demo](images/screen.gif)](https://github.com/user-attachments/assets/87695cbe-08cc-4f0e-9242-e6c251ccac1d)
 
 *The name of this project doesn't have any meaning. I was just listening to that song while typing.*
 
