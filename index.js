@@ -283,10 +283,11 @@ export class BagBak extends EventEmitter {
             We are not able to dump such extensions, because they can not run on your device.`))
 
           throw error;
-        } else if (message.includes('either refused to load frida-agent, or terminated during injection')) {
+        } else if (
+          message.includes('either refused to load frida-agent, or terminated during injection')) {
           throw new Error(`Error: app process crashed, please try running the command again.
             Original error message: ${error}`);
-        } else if (!message.includes('libSystem.B.dylib')) {
+        } else if (!message.includes('libSystem.B.dylib') && !message.includes('Unexpected early end-of-stream')) {
           throw error; // ignore libSystem.B.dylib not found error
         }
         debug('retry', i, error);
