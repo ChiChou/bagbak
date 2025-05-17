@@ -6,6 +6,11 @@
 [![sponsers](https://img.shields.io/github/sponsors/chichou)](https://github.com/sponsors/chichou)
 [![license](https://img.shields.io/github/license/chichou/bagbak)](LICENSE)
 
+**Project is out of active development, please consider other solutions**
+
+* [subdiox/UnFairPlay](https://github.com/subdiox/UnFairPlay)
+* [paradiseduo/appdecrypt](https://github.com/paradiseduo/appdecrypt)
+
 Yet another frida based App decryptor. Requires jailbroken iOS device and [frida.re](https://www.frida.re/)
 
 Tested on iOS 15 (Domapine) and iOS 16 (palera1n).
