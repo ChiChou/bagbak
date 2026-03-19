@@ -1,0 +1,22 @@
+{
+  "name": "bagbak-agent",
+  "version": "1.0.0",
+  "description": "Frida agent written in TypeScript",
+  "private": true,
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "frida-compile src/springboard.ts -o dist/springboard.js -c && frida-compile src/app.ts -o dist/app.js -c",
+    "watch": "frida-compile src/springboard.ts -o dist/springboard.js -w & frida-compile src/app.ts -o dist/app.js -w"
+  },
+  "devDependencies": {
+    "@types/frida-gum": "^19.0.0",
+    "@types/node": "^18.14.0",
+    "frida-compile": "^19.0.5"
+  },
+  "dependencies": {
+    "frida-objc-bridge": "^8.0.5",
+    "frida-remote-stream": "^6.0.3"
+  }
+}

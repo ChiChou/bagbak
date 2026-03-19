@@ -1,3 +1,2 @@
-!agent/inject.js
-!agent/SpringBoard.js
-!agent/pkd.js
+!agent/dist/springboard.js
+!agent/dist/app.js

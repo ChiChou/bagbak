@@ -1,85 +1,30 @@
-import { EventEmitter } from 'events';
-import { mkdir, rm, rmdir, rename, open } from 'fs/promises';
-import { basename, join, resolve } from 'path';
+import { EventEmitter } from "events";
+import { createWriteStream } from "fs";
+import { resolve } from "path";
+import { pipeline } from "stream/promises";
 
-import chalk from 'chalk';
+import chalk from "chalk";
+import Controller from "frida-remote-stream";
 
-import { AppBundleVisitor } from './lib/scan.js';
-import { MH_EXECUTE } from './lib/macho.js';
-import { Pull } from './lib/scp.js';
-import { connect } from './lib/ssh.js';
-import { debug, directoryExists, readFromPackage } from './lib/utils.js';
-import zip from './lib/zip.js';
+import { debug, directoryExists, readFromPackage } from "./lib/utils.js";
 
+const MH_EXECUTE = 0x2;
 
-/**
- * @typedef MessagePayload
- * @property {string} event
- */
-
-/**
- * main class
- */
 export class BagBak extends EventEmitter {
   /** @type {import("frida").Device} */
   #device;
 
-  /** @type {import("frida").Application | null} */
-  #app = null;
-
-  /** @type {import("ssh2").ConnectConfig} */
-  #auth;
+  /** @type {import("frida").Application} */
+  #app;
 
   /**
-   * constructor
-   * @param {import("frida").Device} device 
+   * @param {import("frida").Device} device
    * @param {import("frida").Application} app
    */
   constructor(device, app) {
     super();
-
     this.#app = app;
     this.#device = device;
-
-    if ('SSH_USERNAME' in process.env || 'SSH_PASSWORD' in process.env) {
-      const { SSH_USERNAME, SSH_PASSWORD } = process.env;
-      if (!SSH_USERNAME || !SSH_PASSWORD)
-        throw new Error('You have to provide both SSH_USERNAME and SSH_PASSWORD');
-
-      this.#auth = {
-        username: SSH_USERNAME,
-        password: SSH_PASSWORD
-      };
-    } else if ('SSH_PRIVATE_KEY' in process.env) {
-      throw new Error('key auth not supported yet');
-    } else {
-      this.#auth = {
-        username: 'mobile',
-        password: 'alpine'
-      };
-    }
-  }
-
-  /**
-   * scp from remote to local
-   * @param {string} src 
-   * @param {import("fs").PathLike} dest 
-   */
-  async #copyToLocal(src, dest) {
-    const client = await connect(this.#device, this.#auth);
-
-    const pull = new Pull(client, src, dest, true);
-    const events = ['download', 'mkdir', 'progress', 'done'];
-    for (const event of events) {
-      // delegate events
-      pull.receiver.on(event, (...args) => this.emit(event, ...args));
-    }
-
-    try {
-      await pull.execute();
-    } finally {
-      client.end();
-    }
   }
 
   get bundle() {
@@ -91,257 +36,209 @@ export class BagBak extends EventEmitter {
   }
 
   /**
-   * dump raw app bundle to directory (no ipa)
-   * @param {import("fs").PathLike} parent path
-   * @param {boolean} override whether to override existing files
-   * @returns {Promise<string>}
+   * Attach to SpringBoard and load springboard agent
    */
-  async dump(parent, override = false) {
-    if (!await directoryExists(parent))
-      throw new Error('Output directory does not exist');
+  async #attach() {
+    const session = await this.#device.attach("SpringBoard");
+    const code = await readFromPackage("agent", "dist", "springboard.js");
+    const script = await session.createScript(code.toString());
+    script.logHandler = (level, text) =>
+      console.log("[springboard]", level, text);
+    await script.load();
+    return { session, script };
+  }
 
-    // fist, copy directory to local
-    const remoteRoot = this.remote;
-    debug('remote root', remoteRoot);
-    debug('copy to', parent);
+  /**
+   * Attach to a spawned process, load app agent, decrypt binaries
+   * @param {number} pid
+   * @param {string} remoteRoot
+   * @param {string} tempRoot
+   * @param {Record<string, object>} binaries
+   * @param {boolean} isExtension
+   */
+  async #decrypt(pid, remoteRoot, tempRoot, binaries, isExtension) {
+    const session = await this.#device.attach(pid);
+    const code = await readFromPackage("agent", "dist", "app.js");
+    const script = await session.createScript(code.toString());
 
-    const localRoot = join(parent, basename(remoteRoot));
-    if (await directoryExists(localRoot) && !override)
-      throw new Error('Destination already exists, use -f to override');
+    script.logHandler = (level, text) => debug("[app]", level, text);
+    script.message.connect((message) => {
+      if (message.type === "send" && message.payload?.event === "patch") {
+        this.emit("patch", message.payload.name);
+        script.post({ type: "ack" });
+      }
+    });
 
-    this.emit('sshBegin');
-    await this.#copyToLocal(remoteRoot, parent);
-
-    this.emit('sshFinish');
-
-    const visitor = new AppBundleVisitor(localRoot);
-    await visitor.removeUnwanted();
-
-    /**
-     * @type {Map<string, import('./lib/macho.js').MachO>}
-     */
-    const tasks = new Map();
-    for await (const [relative, info, _] of visitor.visitRoot()) {
-      tasks.set(relative, info);
-    }
-
-    const pidChronod = await this.#device.getProcess('chronod')
-      .then(proc => proc.pid)
-      .catch(() => {
-        throw new Error(`chronod service is not running on the device.
-        At this moment, we haven't implemented the ability to start the service. 
-        Please start it manually with following command on the device and try again:
-        "launchctl kickstart -p user/foreground/com.apple.chronod"`);
-      });
-
-    const agentScript = await readFromPackage('agent', 'inject.js');
-    const launchdScript = await readFromPackage('agent', 'runningboardd.js');
-
-    /** @type {Map<string, import("fs/promises").FileHandle>} */
-    const fileHandles = new Map();
-
-    /**
-     * @param {number} pid
-     * @param {string[]} binaries
-     * @returns {Promise<boolean>}
-     */
-    const task = async (pid, binaries) => {
-      debug('pid =>', pid);
-
-      await this.ensurePidReady(pid);  // hack
-
-      /** @type {import("frida").Session} */
-      const session = await this.#device.attach(pid);
-      /** @type {import("frida").Script} */
-      const script = await session.createScript(agentScript.toString());
-      debug('session =>', session);
-
-      script.logHandler = (level, text) => {
-        debug('[script log]', level, text); // todo: color
-      };
-
-      session.detached.connect((reason, crash) => {
-        debug('session detached', reason, crash);
-      });
-
-      /**
-       * @param {function(msg: import("frida").Message, data: ArrayBuffer): void} handler
-       */
-      script.message.connect(async (message, data) => {
-        if (message.type !== 'send') return;
-
-        debug('msg', message, data);
-
-        /**
-         * @type {MessagePayload}
-         */
-        const payload = message.payload;
-        const key = payload.name;
-        if (payload.event === 'begin') {
-          this.emit('patch', key);
-          debug('patch >>', join(localRoot, key));
-          const fd = await open(join(localRoot, key), 'r+');
-          fileHandles.set(key, fd);
-        } else if (payload.event === 'trunk') {
-          await fileHandles.get(key).write(data, 0, data.byteLength, payload.fileOffset);
-        } else if (payload.event === 'end') {
-          await fileHandles.get(key).close();
-          fileHandles.delete(key);
-        }
-
-        script.post({ type: 'ack' });
-      });
-
-      await script.load();
-      const result = await script.exports.dump(remoteRoot, binaries);
-      debug('result =>', result);
-      await script.unload();
-      await session.detach();
-      await this.#device.kill(pid);
-
-      return true;
-    }
-
-    const runningboardd = await this.#device.attach('runningboardd');
-    const script = await runningboardd.createScript(launchdScript);
     await script.load();
 
-    /** @type {ExtensionInfo[]} */
-    const extensions = await script.exports.extensions(this.#app.identifier);
-    debug('extensions', extensions);
-
-    /** @type {string} */
-    const mainAppBinary = this.#app.parameters.path + '/' + await script.exports.main(this.#app.identifier);
-    debug('main app binary', mainAppBinary);
-
-    /** @type {Map<string, Record<string, MachO>>} */
-    const groupByExtensions = new Map(extensions.map(ext => [ext.id, {}]));
-
-    /** @type {Record<string, MachO>} */
-    const binariesForMain = {};
-    for (const [relative, info] of tasks.entries()) {
-      const absolute = remoteRoot + '/' + relative;
-      const ext = extensions.find(ext => absolute.startsWith(ext.path));
-      if (ext) {
-        debug('scope for', chalk.green(relative), 'is', chalk.gray(ext.id));
-        groupByExtensions.get(ext.id)[relative] = info;
-        continue;
-      }
-
-      if (info.type === MH_EXECUTE && absolute !== mainAppBinary) {
-        console.error(chalk.red('Executable'), chalk.yellowBright(relative));
-        console.error(chalk.red('is not within any extension. It is very likely that one of the extensions requires a MinimumOSVersion'));
-        console.error(chalk.red('that is higher than your OS. This will result in a binary that is left encrypted.'));
-      } else {
-        debug('scope for', relative, 'is', chalk.green('main app'));
-        binariesForMain[relative] = info;
-      }
+    if (isExtension) {
+      await script.exports.hookExtensionMain();
     }
 
-    debug('grouped by extensions', groupByExtensions);
-    debug('binaries for main app', binariesForMain);
-
-    // dump main app
-    if (Object.keys(binariesForMain).length) {
-      const pidApp = await script.exports.spawn(this.#app.identifier);
-      debug('spawned app pid =>', pidApp);
-      await task(pidApp, binariesForMain);
-    }
-
-    // dump extensions
-    for (const [extId, binaries] of groupByExtensions.entries()) {
-      if (Object.keys(binaries).length === 0) continue;
-
-      const pidExtension = await script.exports.kickstart(extId, pidChronod);
-      debug('extension', extId, pidExtension);
-      await task(pidExtension, binaries);
-    }
+    await this.#device.resume(pid);
+    const result = await script.exports.dump(remoteRoot, tempRoot, binaries, isExtension);
+    debug("dump result =>", result);
 
     await script.unload();
-    await runningboardd.detach();
-
-    return localRoot;
+    await session.detach();
   }
 
   /**
-   * hack: there is some race condition, so wait 1 sec for frida to initialize
-   * need to find out the proper signal
-   * @param {number} pid 
+   * Stream a file from device to local disk using frida-remote-stream
+   * @param {import("frida").Script} coordScript
+   * @param {string} zipPath   path on device
+   * @param {string} destPath  local path
    */
-  async ensurePidReady(pid) {
-    for (let i = 0; i < 20; i++) {
-      try {
-        const session = await this.#device.attach(pid);
-        await session.detach();
-        return;
-      } catch (error) {
-        const message = `${error}`;
-        if (message.includes('Timeout was reached')) {
-          console.error(chalk.yellowBright(
-            `For timeout error, there is an edge case that some apps from appstore incorrectly
-            set the minimum os version requirement. For example WidgetKitExtension of Chrome app.
-            We are not able to dump such extensions, because they can not run on your device.`))
+  async #pull(coordScript, zipPath, destPath) {
+    const controller = new Controller();
 
-          throw error;
-        } else if (
-          message.includes('either refused to load frida-agent, or terminated during injection')) {
-          throw new Error(`Error: app process crashed, please try running the command again.
-            Original error message: ${error}`);
-        } else if (!message.includes('libSystem.B.dylib') && !message.includes('Unexpected early end-of-stream')) {
-          throw error; // ignore libSystem.B.dylib not found error
-        }
-        debug('retry', i, error);
+    const done = new Promise((resolve, reject) => {
+      controller.events.on("stream", (source) => {
+        this.emit("streaming", source.details.size);
+        pipeline(source, createWriteStream(destPath)).then(resolve, reject);
+      });
+    });
+
+    controller.events.on("send", (packet) => {
+      coordScript.post({ type: "stream", ...packet.stanza }, packet.data);
+    });
+
+    const handler = (message, data) => {
+      if (
+        message.type === "send" &&
+        typeof message.payload?.name === "string"
+      ) {
+        controller.receive({ stanza: message.payload, data });
       }
-      // sleep
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+    };
+    coordScript.message.connect(handler);
 
-    // maxium retries reached (10s)
-    throw new Error(`attach to ${pid} timed out`);
+    try {
+      await coordScript.exports.stream(zipPath);
+      await done;
+    } finally {
+      coordScript.message.disconnect(handler);
+    }
   }
 
   /**
-   * dump and pack to ipa. if no name is provided, the bundle id and version will be used
-   * @param {import("fs").PathLike?} suggested path of ipa
-   * @returns {Promise<string>} final path of ipa
+   * Dump and pack to IPA
+   * @param {import("fs").PathLike?} suggested  output path or directory
+   * @returns {Promise<string>} final IPA path
    */
   async pack(suggested) {
-    const DIR_NAME = '.bagbak'; // do not use tmpdir here, because sometimes it might be in different partition
-    const payload = join(DIR_NAME, this.bundle, 'Payload');
-    await rm(payload, { recursive: true, force: true });
-    await mkdir(payload, { recursive: true });
-    await this.dump(payload, true, true);
-    debug('payload =>', payload);
+    const { session: coordSession, script: coordScript } =
+      await this.#attach();
 
-    const ver = this.#app.parameters.version || 'Unknown';
-    const defaultTemplate = `${this.bundle}-${ver}.ipa`;
+    try {
+      this.emit("status", "Copying app bundle on device...");
+      const { tempBase, tempRoot, tasks, extensions, mainBinary } =
+        await coordScript.exports.prepare(this.remote, this.bundle);
 
-    const ipa = suggested ?
-      (await directoryExists(suggested) ?
-        join(suggested, defaultTemplate) :
-        suggested) :
-      defaultTemplate;
+      const taskCount = Object.keys(tasks).length;
+      debug("tempRoot", tempRoot);
+      debug("tasks", taskCount, "encrypted binaries");
+      debug("extensions", extensions.length);
 
-    if (!ipa.endsWith('.ipa'))
-      throw new Error(`Invalid archive name ${suggested}, must end with .ipa`);
+      if (taskCount === 0) {
+        this.emit("status", "No encrypted binaries found");
+      }
 
-    const full = resolve(process.cwd(), ipa);
-    const z = full.slice(0, -4) + '.zip';
-    await zip(z, payload);
-    debug('Created zip archive', z);
-    await rename(z, ipa);
+      const groupByExtensions = new Map(extensions.map((ext) => [ext.id, {}]));
+      const binariesForMain = {};
 
-    {
-      // remove artifact
-      const artifact = join(DIR_NAME, this.bundle);
-      await rm(artifact, { recursive: true, force: true })
-        .catch(error => {
-          debug(`Warning: failed to remove artifact directory ${artifact}`, error);
-        })
-        .then(() => rmdir(DIR_NAME))
-        .catch(_ => { /* ignore */ });
+      for (const [relative, info] of Object.entries(tasks)) {
+        const absolute = this.remote + "/" + relative;
+        const ext = extensions.find((ext) => absolute.startsWith(ext.path));
+
+        if (ext) {
+          debug("scope for", chalk.green(relative), "is", chalk.gray(ext.id));
+          groupByExtensions.get(ext.id)[relative] = info;
+        } else if (
+          info.type === MH_EXECUTE &&
+          absolute !== this.remote + "/" + mainBinary
+        ) {
+          console.error(chalk.red("Executable"), chalk.yellowBright(relative));
+          console.error(
+            chalk.red(
+              "is not within any extension. Likely requires higher MinimumOSVersion.",
+            ),
+          );
+          console.error(chalk.red("This binary will be left encrypted."));
+        } else {
+          debug("scope for", relative, "is", chalk.green("main app"));
+          binariesForMain[relative] = info;
+        }
+      }
+
+      if (Object.keys(binariesForMain).length) {
+        this.emit("status", "Decrypting main app...");
+        const pid = await this.#device.spawn(this.bundle);
+        debug("spawned app pid =>", pid);
+        try {
+          await this.#decrypt(
+            pid,
+            this.remote,
+            tempRoot,
+            binariesForMain,
+            false,
+          );
+        } finally {
+          await this.#device.kill(pid).catch(() => {});
+        }
+      }
+
+      for (const [extId, binaries] of groupByExtensions.entries()) {
+        if (Object.keys(binaries).length === 0) continue;
+
+        const ext = extensions.find((e) => e.id === extId);
+        this.emit("status", `Decrypting extension ${extId}...`);
+        const pid = await this.#device.spawn([ext.abs]);
+        debug("extension", extId, "pid =>", pid);
+        try {
+          await this.#decrypt(
+            pid,
+            this.remote,
+            tempRoot,
+            binaries,
+            true,
+          );
+        } finally {
+          await this.#device.kill(pid).catch(() => {});
+        }
+      }
+
+      this.emit("status", "Assembling IPA on device...");
+      const zipPath = await coordScript.exports.zip(tempBase);
+      debug("zip created at", zipPath);
+
+      const ver = this.#app.parameters.version || "Unknown";
+      const defaultTemplate = `${this.bundle}-${ver}.ipa`;
+
+      const ipa = suggested
+        ? (await directoryExists(suggested))
+          ? suggested + "/" + defaultTemplate
+          : suggested
+        : defaultTemplate;
+
+      if (!ipa.endsWith(".ipa"))
+        throw new Error(
+          `Invalid archive name ${suggested}, must end with .ipa`,
+        );
+
+      this.emit("status", "Streaming IPA from device...");
+      await this.#pull(
+        coordScript,
+        zipPath,
+        resolve(process.cwd(), ipa),
+      );
+
+      await coordScript.exports.cleanup(tempBase);
+
+      return ipa;
+    } finally {
+      await coordScript.unload().catch(() => {});
+      await coordSession.detach().catch(() => {});
     }
-
-    return ipa;
   }
 }

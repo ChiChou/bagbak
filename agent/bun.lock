@@ -1,0 +1,30 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "bagbak-agent",
+      "dependencies": {
+        "frida-objc-bridge": "^8.0.5",
+        "frida-remote-stream": "^6.0.3",
+      },
+      "devDependencies": {
+        "@types/frida-gum": "^19.0.0",
+        "@types/node": "^18.14.0",
+      },
+    },
+  },
+  "packages": {
+    "@types/frida-gum": ["@types/frida-gum@19.0.2", "", {}, "sha512-oh/f1r8dIMDWBoziXP3geIJ8ga/siU32MuifBztGsDglOKbHrhS0E3z0Dab0MIe3UFzC4Bvz/GRHfin2LDE8BQ=="],
+
+    "@types/node": ["@types/node@18.19.130", "", { "dependencies": { "undici-types": "~5.26.4" } }, "sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg=="],
+
+    "frida-objc-bridge": ["frida-objc-bridge@8.0.5", "", {}, "sha512-0xnL0VgxSQXgLj3S33S0kdAvLrCHSCIZb9HVraEgEyKnf9wOcu0KZ9fI5xzx0e0y+ry/g2Vl3yw9j3dsn92Ffg=="],
+
+    "frida-remote-stream": ["frida-remote-stream@6.0.3", "", { "dependencies": { "tiny-typed-emitter": "^2.1.0" } }, "sha512-RDWCKdKJOj/nqPMJ8r6YEd4dbLyTQBqwCR1OLy0mwFi1R/rTWS0EIs3UeG0cKIEW3OaDpgGL4IQ7ecDxpgIQ3w=="],
+
+    "tiny-typed-emitter": ["tiny-typed-emitter@2.1.0", "", {}, "sha512-qVtvMxeXbVej0cQWKqVSSAHmKZEHAvxdF8HEUBFWts8h+xEo5m/lEiPakuyZ3BnCBjOD8i24kzNOiOLLgsSxhA=="],
+
+    "undici-types": ["undici-types@5.26.5", "", {}, "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA=="],
+  }
+}

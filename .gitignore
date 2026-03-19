@@ -6,8 +6,6 @@ output/
 *.app/
 *.ipa
 
-agent.dist.js
-
 .DS_Store
 
 # Logs
@@ -92,7 +90,6 @@ typings/
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
 .cache/

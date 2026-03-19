@@ -3,38 +3,31 @@
 import chalk from 'chalk';
 
 import { Command } from 'commander';
-import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Device, Scope } from 'frida';
+import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Scope } from 'frida';
 
 import { BagBak } from '../index.js';
 import { enableDebug, version } from '../lib/utils.js';
 
 /**
- * 
- * @param {Command} cmd 
- * @returns {Promise<Device>} device
+ * @param {object} opts
+ * @returns {Promise<import("frida").Device>}
  */
-function getDeviceFromOptions(cmd) {
+function getDeviceFromOptions(opts) {
   let count = 0;
 
-  if (cmd.device) count++;
-  if (cmd.usb) count++;
-  if (cmd.remote) count++;
-  if (cmd.host) count++;
+  if (opts.device) count++;
+  if (opts.usb) count++;
+  if (opts.remote) count++;
+  if (opts.host) count++;
 
-  if (count === 0 || cmd.usb) {
-    return getUsbDevice();
-  }
+  if (count === 0 || opts.usb) return getUsbDevice();
+  if (count > 1) throw new Error('Only one of --device, --usb, --remote, --host can be specified');
 
-  if (count > 1)
-    throw new Error('Only one of --device, --usb, --remote, --host can be specified');
-
-  if (cmd.device) {
-    return getDevice(cmd.device);
-  } else if (cmd.remote) {
-    return getRemoteDevice();
-  } else if (cmd.host) {
+  if (opts.device) return getDevice(opts.device);
+  if (opts.remote) return getRemoteDevice();
+  if (opts.host) {
     const manager = new DeviceManager();
-    return manager.addRemoteDevice(cmd.host);
+    return manager.addRemoteDevice(opts.host);
   }
 }
 
@@ -51,19 +44,19 @@ async function main() {
     .option('-D, --device <uuid>', 'connect to device with the given ID')
     .option('-H, --host <host>', 'connect to remote frida-server on HOST')
 
-    .option('-f, --force', 'override existing files')
     .option('-d, --debug', 'enable debug output')
-    .option('-r, --raw', 'dump raw app bundle to directory (no ipa)')
-    .option('-o, --output <output>', 'ipa filename or directory to dump to')
-    .usage('[bundle id or name]')
+    .option('-o, --output <output>', 'ipa filename or directory')
+    .argument('[target]', 'bundle id or name')
     .version(await version());
 
   program.parse(process.argv);
 
-  if (program.debug)
+  const opts = program.opts();
+
+  if (opts.debug)
     enableDebug(true);
 
-  const device = await getDeviceFromOptions(program);
+  const device = await getDeviceFromOptions(opts);
   const info = await device.querySystemParameters();
 
   if (info.access !== 'full' || info.os.id !== 'ios' || info.platform !== 'darwin' || info.arch !== 'arm64') {
@@ -71,10 +64,10 @@ async function main() {
     process.exit(1);
   }
 
-  if (program.list) {
+  if (opts.list) {
     const apps = await device.enumerateApplications({ scope: Scope.Metadata });
 
-    if (program.json) {
+    if (opts.json) {
       console.log(JSON.stringify(apps, null, 2));
       return;
     }
@@ -88,7 +81,7 @@ async function main() {
       chalk.gray('Name'),
     );
 
-    console.log(chalk.gray('─'.repeat(10 + verWidth + idWidth)));
+    console.log(chalk.gray('\u2500'.repeat(10 + verWidth + idWidth)));
 
     for (const app of apps) {
       console.log(
@@ -111,37 +104,18 @@ async function main() {
 
     const job = new BagBak(device, app);
 
-    let files = 0;
-    let folders = 0;
-
     job
-      .on('mkdir', (remote) => {
-        folders++;
+      .on('status', (msg) => {
+        console.log(chalk.greenBright('[info]'), msg);
       })
-      .on('download', (remote, size) => {
+      .on('patch', (name) => {
+        console.log(chalk.redBright('[decrypt]'), name);
+      })
+      .on('streaming', (totalSize) => {
+        console.log(chalk.greenBright('[info]'), `Streaming ${(totalSize / 1024 / 1024).toFixed(1)} MB...`);
+      });
 
-      })
-      .on('progress', (remote, downloaded, size) => {
-
-      })
-      .on('done', (remote) => {
-        process.stdout.write(`\r${chalk.greenBright('[info]')} downloaded ${files++} files and ${folders} folders`);
-      })
-      .on('sshBegin', () => {
-        console.log(chalk.greenBright('[info]'), 'pulling app bundle from device, please be patient');
-      })
-      .on('sshFinish', () => {
-        process.stdout.write('\n');
-        console.log(chalk.greenBright('[info]'), 'app bundle downloaded');
-      })
-      .on('patch', (remote) => {
-        console.log(chalk.redBright('[decrypt]'), remote);
-      })
-
-    const saved = program.raw ?
-      await job.dump(program.output || '.', program.force) :
-      await job.pack(program.output);
-
+    const saved = await job.pack(opts.output);
     console.log(`Saved to ${chalk.yellow(saved)}`);
     return;
   }
