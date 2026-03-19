@@ -2,19 +2,17 @@
   "name": "bagbak",
   "version": "5.0.0",
   "description": "Dump iOS app from a jailbroken device, based on frida.re",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
-    "test": "echo 'Not supported'",
-    "types": "npx -p typescript tsc index.js --declaration --allowJs --emitDeclarationOnly --outDir types --lib esnext"
+    "test": "echo 'Not supported'"
   },
   "author": "CodeColorist",
   "license": "MIT",
   "bin": {
-    "bagbak": "./bin/bagbak.js"
+    "bagbak": "./bin/bagbak.ts"
   },
-  "types": "types/index.d.ts",
   "files": [
-    "index.js",
+    "index.ts",
     "/agent/dist/app.js",
     "/agent/dist/springboard.js",
     "/bin",

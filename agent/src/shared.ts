@@ -27,7 +27,6 @@ type NativeAPI = {
   read: NativeFunction<number, [number, NativePointerValue, number]>;
   pwrite: NativeFunction<number, [number, NativePointerValue, number, number]>;
   exit: NativeFunction<void, [number]>;
-  NSTemporaryDirectory: NativeFunction<NativePointer, []>;
 };
 
 let api: NativeAPI | null = null;
@@ -66,13 +65,6 @@ export function getApi(): NativeAPI {
     exit: new NativeFunction(Module.getGlobalExportByName("exit"), "void", [
       "int",
     ]),
-    NSTemporaryDirectory: new NativeFunction(
-      Process.getModuleByName("Foundation").getExportByName(
-        "NSTemporaryDirectory",
-      ),
-      "pointer",
-      [],
-    ),
   };
 
   return api;

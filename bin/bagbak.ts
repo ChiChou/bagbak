@@ -4,15 +4,23 @@ import chalk from 'chalk';
 
 import { Command } from 'commander';
 import { DeviceManager, getDevice, getRemoteDevice, getUsbDevice, Scope } from 'frida';
+import type { Device } from 'frida';
 
-import { BagBak } from '../index.js';
-import { enableDebug, version } from '../lib/utils.js';
+import { BagBak } from '../index.ts';
+import { enableDebug, version } from '../lib/utils.ts';
 
-/**
- * @param {object} opts
- * @returns {Promise<import("frida").Device>}
- */
-function getDeviceFromOptions(opts) {
+interface Options {
+  device?: string;
+  usb?: boolean;
+  remote?: boolean;
+  host?: string;
+  debug?: boolean;
+  list?: boolean;
+  json?: boolean;
+  output?: string;
+}
+
+function getDeviceFromOptions(opts: Options): Promise<Device> {
   let count = 0;
 
   if (opts.device) count++;
@@ -29,6 +37,8 @@ function getDeviceFromOptions(opts) {
     const manager = new DeviceManager();
     return manager.addRemoteDevice(opts.host);
   }
+
+  return getUsbDevice();
 }
 
 async function main() {
@@ -51,7 +61,7 @@ async function main() {
 
   program.parse(process.argv);
 
-  const opts = program.opts();
+  const opts = program.opts<Options>();
 
   if (opts.debug)
     enableDebug(true);
@@ -72,7 +82,7 @@ async function main() {
       return;
     }
 
-    const verWidth = Math.max(...apps.map(app => app.parameters?.version?.length || 0));
+    const verWidth = Math.max(...apps.map(app => (app.parameters?.version as string)?.length || 0));
     const idWidth = Math.max(...apps.map(app => app.identifier.length));
 
     console.log(
@@ -85,7 +95,7 @@ async function main() {
 
     for (const app of apps) {
       console.log(
-        chalk.yellowBright((app.parameters?.version || '').padStart(verWidth)),
+        chalk.yellowBright(((app.parameters?.version as string) || '').padStart(verWidth)),
         chalk.greenBright(app.identifier.padEnd(idWidth)),
         app.name
       );
@@ -105,13 +115,13 @@ async function main() {
     const job = new BagBak(device, app);
 
     job
-      .on('status', (msg) => {
+      .on('status', (msg: string) => {
         console.log(chalk.greenBright('[info]'), msg);
       })
-      .on('patch', (name) => {
+      .on('patch', (name: string) => {
         console.log(chalk.redBright('[decrypt]'), name);
       })
-      .on('streaming', (totalSize) => {
+      .on('streaming', (totalSize: number) => {
         console.log(chalk.greenBright('[info]'), `Streaming ${(totalSize / 1024 / 1024).toFixed(1)} MB...`);
       });
 

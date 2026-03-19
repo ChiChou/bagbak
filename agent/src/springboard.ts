@@ -108,10 +108,9 @@ function removeExcludedDirs(dir: string): void {
 
 rpc.exports = {
   prepare(bundlePath: string, bundleId: string) {
-    const { NSTemporaryDirectory } = getApi();
-    const tmp: string = new ObjC.Object(NSTemporaryDirectory()).toString();
+    const tmp = Process.getTmpDir().replace(/\/$/, "");
     const bundleName = bundlePath.split("/").pop()!;
-    const base = tmp + ".bagbak-" + bundleName;
+    const base = tmp + "/.bagbak-" + bundleName;
     const payloadDir = base + "/Payload";
     const root = payloadDir + "/" + bundleName;
 
