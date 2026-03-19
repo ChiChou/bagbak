@@ -7,7 +7,7 @@ import chalk from "chalk";
 import type { Application, Device, Script } from "frida";
 import Controller from "frida-remote-stream";
 
-import { debug, directoryExists, readFromPackage } from "./lib/utils.ts";
+import { debug, directoryExists, readFromPackage } from "./lib/utils.js";
 
 const MH_EXECUTE = 0x2;
 
@@ -182,13 +182,7 @@ export class BagBak extends EventEmitter {
         const pid = await this.#device.spawn(this.bundle);
         debug("spawned app pid =>", pid);
         try {
-          await this.#decrypt(
-            pid,
-            this.remote,
-            root,
-            binariesForMain,
-            false,
-          );
+          await this.#decrypt(pid, this.remote, root, binariesForMain, false);
         } finally {
           await this.#device.kill(pid).catch(() => {});
         }

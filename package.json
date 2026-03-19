@@ -2,21 +2,28 @@
   "name": "bagbak",
   "version": "5.0.0",
   "description": "Dump iOS app from a jailbroken device, based on frida.re",
-  "main": "index.ts",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
   "scripts": {
+    "build": "tsdown",
+    "prepublishOnly": "npm run build",
     "test": "echo 'Not supported'"
   },
   "author": "CodeColorist",
   "license": "MIT",
   "bin": {
-    "bagbak": "./bin/bagbak.ts"
+    "bagbak": "./dist/bin/bagbak.mjs"
   },
   "files": [
-    "index.ts",
+    "/dist",
     "/agent/dist/app.js",
-    "/agent/dist/springboard.js",
-    "/bin",
-    "/lib/"
+    "/agent/dist/springboard.js"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -24,7 +31,9 @@
   "type": "module",
   "devDependencies": {
     "@types/frida-gum": "^19.0.2",
-    "@types/node": "^25.5.0"
+    "@types/node": "^25.5.0",
+    "tsdown": "^0.21.4",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "chalk": "^5.6.2",

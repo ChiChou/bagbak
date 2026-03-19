@@ -9,25 +9,33 @@ jobs:
   publish-npm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'true'
+      - uses: actions/checkout@v4
 
-      - name: Install Dependency
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install agent dependencies
+        run: npm ci
+        working-directory: agent
+
+      - name: Build agent
+        run: npm run build
+        working-directory: agent
+
+      - name: Install dependencies
         run: npm ci
 
+      - name: Build
+        run: npm run build
+
       - name: Publish
-        uses: JS-DevTools/npm-publish@v1
+        uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_TOKEN }}
+
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: ''
-          draft: false
-          prerelease: false
+          name: Release ${{ github.ref }}

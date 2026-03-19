@@ -1,0 +1,6 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "noEmit": true,
+  },
+}
