@@ -1,6 +1,6 @@
 {
   "name": "bagbak",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "Dump iOS app from a jailbroken device, based on frida.re",
   "main": "dist/index.mjs",
   "types": "dist/index.d.mts",
@@ -18,7 +18,11 @@
   "author": "CodeColorist",
   "license": "MIT",
   "bin": {
-    "bagbak": "./dist/bin/bagbak.mjs"
+    "bagbak": "dist/bin/bagbak.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "files": [
     "/dist",

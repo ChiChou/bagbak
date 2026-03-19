@@ -8,12 +8,19 @@ on:
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure npm version for Trusted Publishing
+        run: npm install -g npm@latest
 
       - name: Install agent dependencies
         run: npm ci
@@ -29,10 +36,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish
-        uses: JS-DevTools/npm-publish@v3
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: dummy
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
