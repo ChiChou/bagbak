@@ -12,8 +12,8 @@ import {
 } from "frida";
 import type { Device } from "frida";
 
-import { BagBak } from "../index.js";
-import { enableDebug, version } from "../lib/utils.js";
+import { BagBak } from "../index.ts";
+import { enableDebug, version } from "../lib/utils.ts";
 
 interface Options {
   device?: string;

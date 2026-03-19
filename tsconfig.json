@@ -2,5 +2,6 @@
   "compilerOptions": {
     "module": "nodenext",
     "noEmit": true,
+    "rewriteRelativeImportExtensions": true,
   },
 }

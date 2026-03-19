@@ -7,7 +7,7 @@ import chalk from "chalk";
 import type { Application, Device, Script } from "frida";
 import Controller from "frida-remote-stream";
 
-import { debug, directoryExists, readFromPackage } from "./lib/utils.js";
+import { debug, directoryExists, readFromPackage } from "./lib/utils.ts";
 
 const MH_EXECUTE = 0x2;
 
