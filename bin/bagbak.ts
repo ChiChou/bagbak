@@ -66,7 +66,7 @@ async function main() {
     .option("-d, --debug", "enable debug output")
     .option("-o, --output <output>", "ipa filename or directory")
     .argument("[target]", "bundle id or name")
-    .version(await version());
+    .version(version());
 
   program.parse(process.argv);
 

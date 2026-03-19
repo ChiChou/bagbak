@@ -3,6 +3,8 @@ import { type PathLike } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
+import pkg from "../package.json" with { type: "json" };
+
 export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -11,17 +13,18 @@ export const directoryExists = (path: PathLike): Promise<boolean> =>
     .then((info) => info.isDirectory())
     .catch(() => false);
 
-export function readFromPackage(...components: string[]): Promise<string> {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const packageRoot = join(
+  __dirname,
+  process.env.TSDOWN_BUILD ? join("..", "..") : "..",
+);
 
-  const agent = join(__dirname, "..", ...components);
-  return readFile(agent, "utf8");
+export function readFromPackage(...components: string[]): Promise<string> {
+  return readFile(join(packageRoot, ...components), "utf8");
 }
 
-export async function version(): Promise<string> {
-  const { version } = JSON.parse(await readFromPackage("package.json"));
-  return version;
+export function version(): string {
+  return pkg.version;
 }
 
 let __debug = "DEBUG" in process.env;

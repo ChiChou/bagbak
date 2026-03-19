@@ -6,4 +6,7 @@ export default defineConfig({
   dts: true,
   outDir: "dist",
   unbundle: true,
+  define: {
+    "process.env.TSDOWN_BUILD": "'1'",
+  },
 });
