@@ -142,8 +142,25 @@ async function main() {
       .on("streaming", (totalSize: number) => {
         console.log(
           chalk.greenBright("[info]"),
-          `Streaming ${(totalSize / 1024 / 1024).toFixed(1)} MB...`,
+          `Streaming ${(totalSize / 1024 / 1024).toFixed(1)} MB from device...`,
         );
+      })
+      .on("progress", (transferred: number, totalSize: number) => {
+        const percent = Math.min(transferred / totalSize, 1);
+        const barWidth = 30;
+        const filled = Math.round(barWidth * percent);
+        const bar =
+          chalk.greenBright("\u2588".repeat(filled)) +
+          chalk.gray("\u2591".repeat(barWidth - filled));
+        const mb = (transferred / 1024 / 1024).toFixed(1);
+        const totalMb = (totalSize / 1024 / 1024).toFixed(1);
+        const pct = (percent * 100).toFixed(0).padStart(3);
+        process.stdout.write(
+          `\r  ${bar} ${pct}% ${mb}/${totalMb} MB`,
+        );
+        if (transferred >= totalSize) {
+          process.stdout.write("\n");
+        }
       });
 
     const saved = await job.pack(opts.output);

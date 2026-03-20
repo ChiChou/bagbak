@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import { createWriteStream, type PathLike } from "fs";
 import { resolve } from "path";
+import { Transform } from "stream";
 import { pipeline } from "stream/promises";
 
 import chalk from "chalk";
@@ -101,8 +102,33 @@ export class BagBak extends EventEmitter {
 
     const done = new Promise<void>((resolve, reject) => {
       controller.events.on("stream", (source: any) => {
-        this.emit("streaming", source.details.size);
-        pipeline(source, createWriteStream(destPath)).then(resolve, reject);
+        const totalSize: number = source.details.size;
+        this.emit("streaming", totalSize);
+
+        let transferred = 0;
+        const progress = new Transform({
+          transform(chunk, _encoding, callback) {
+            transferred += chunk.length;
+            this.push(chunk);
+            callback();
+          },
+        });
+
+        const interval = setInterval(() => {
+          this.emit("progress", transferred, totalSize);
+        }, 200);
+
+        pipeline(source, progress, createWriteStream(destPath)).then(
+          () => {
+            clearInterval(interval);
+            this.emit("progress", totalSize, totalSize);
+            resolve();
+          },
+          (err) => {
+            clearInterval(interval);
+            reject(err);
+          },
+        );
       });
     });
 
