@@ -14,6 +14,8 @@ Tested on iOS 15 (Dopamine) and iOS 16 (palera1n).
 
 ## Prerequisites
 
+**Note:** bagbak@5 requires frida@17. If your frida-server is v16, use `npm install -g bagbak@4` instead.
+
 ### On device
 
 * [frida.re](https://www.frida.re/docs/ios/)
@@ -44,11 +46,7 @@ Environments variables:
 
 * `DEBUG=1` enable debug output for troubleshooting
 
-
 Example:
 
 * `bagbak -l` to list all apps
 * `bagbak com.google.chrome.ios` to dump app to `com.google.chrome.ios-[version].ipa`
-
-<p align="center">想看更多中文技术分享？欢迎关注我的公众号</p>
-<p align="center"><image src="images/weixin.jpg" width="240" /></p>
