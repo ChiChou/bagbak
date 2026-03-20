@@ -36,6 +36,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Pack tarball
+        run: npm pack
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
@@ -44,5 +47,6 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          files: '*.tgz'
