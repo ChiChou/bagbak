@@ -106,6 +106,39 @@ function removeExcludedDirs(dir: string): void {
   }
 }
 
+function zipDirectory(sourceDir: string, destPath: string): string {
+  const coordinator =
+    ObjC.classes.NSFileCoordinator.alloc().initWithFilePresenter_(null);
+  const folderURL = ObjC.classes.NSURL.fileURLWithPath_(sourceDir);
+
+  const block = new ObjC.Block({
+    retType: "void",
+    argTypes: ["object"],
+    implementation(newURL: ObjC.Object) {
+      nsError((e) =>
+        fileMgr().copyItemAtPath_toPath_error_(
+          newURL.path().toString(),
+          destPath,
+          e,
+        ),
+      );
+    },
+  });
+
+  const NSFileCoordinatorReadingForUploading = 1 << 3;
+
+  nsError((e) =>
+    coordinator.coordinateReadingItemAtURL_options_error_byAccessor_(
+      folderURL,
+      NSFileCoordinatorReadingForUploading,
+      e,
+      block,
+    ),
+  );
+
+  return destPath;
+}
+
 rpc.exports = {
   prepare(bundlePath: string, bundleId: string) {
     const tmp = Process.getTmpDir().replace(/\/$/, "");
@@ -176,39 +209,35 @@ rpc.exports = {
   },
 
   zip(base: string) {
-    const payloadDir = base + "/Payload";
-    const zipDest = base + "/app.ipa";
+    return zipDirectory(base + "/Payload", base + "/app.ipa");
+  },
 
-    const coordinator =
-      ObjC.classes.NSFileCoordinator.alloc().initWithFilePresenter_(null);
-    const folderURL = ObjC.classes.NSURL.fileURLWithPath_(payloadDir);
+  zipFiles(root: string, files: string[]) {
+    const base = root.replace(/\/Payload\/[^/]+$/, "");
+    const staging = base + "/binaries";
+    const zipDest = base + "/binaries.zip";
 
-    const block = new ObjC.Block({
-      retType: "void",
-      argTypes: ["object"],
-      implementation(newURL: ObjC.Object) {
-        nsError((e) =>
-          fileMgr().copyItemAtPath_toPath_error_(
-            newURL.path().toString(),
-            zipDest,
-            e,
-          ),
-        );
-      },
-    });
+    fileMgr().removeItemAtPath_error_(staging, NULL);
+    fileMgr().removeItemAtPath_error_(zipDest, NULL);
 
-    const NSFileCoordinatorReadingForUploading = 1 << 3;
+    for (const relative of files) {
+      const src = root + "/" + relative;
+      const dst = staging + "/" + relative;
+      const dstDir = dst.substring(0, dst.lastIndexOf("/"));
 
-    nsError((e) =>
-      coordinator.coordinateReadingItemAtURL_options_error_byAccessor_(
-        folderURL,
-        NSFileCoordinatorReadingForUploading,
-        e,
-        block,
-      ),
-    );
+      nsError((e) =>
+        fileMgr().createDirectoryAtPath_withIntermediateDirectories_attributes_error_(
+          dstDir,
+          true,
+          NULL,
+          e,
+        ),
+      );
 
-    return zipDest;
+      nsError((e) => fileMgr().copyItemAtPath_toPath_error_(src, dst, e));
+    }
+
+    return zipDirectory(staging, zipDest);
   },
 
   stream(filePath: string) {
