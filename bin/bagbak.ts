@@ -12,8 +12,18 @@ import {
 } from "frida";
 import type { Device } from "frida";
 
-import { BagBak } from "../index.ts";
+import { BagBak, type DumpMode } from "../index.ts";
 import { enableDebug, version } from "../lib/utils.ts";
+
+const VALID_MODES = ["all", "main", "extensions", "binaries"] as const;
+
+const MODE_ALIASES: Record<string, DumpMode> = {
+  app: "main",
+  ext: "extensions",
+  exts: "extensions",
+  executables: "binaries",
+  bin: "binaries",
+};
 
 interface Options {
   device?: string;
@@ -66,6 +76,7 @@ async function main() {
     .option("-d, --debug", "enable debug output")
     .option("-o, --output <output>", "ipa filename or directory")
     .argument("[target]", "bundle id or name")
+    .argument("[mode]", "dump mode: all, main (app), extensions (ext, exts), binaries (bin, executables)", "all")
     .version(version());
 
   program.parse(process.argv);
@@ -121,8 +132,17 @@ async function main() {
     return;
   }
 
-  if (program.args.length === 1) {
+  if (program.args.length >= 1) {
     const target = program.args[0];
+    const rawMode = program.args[1] || "all";
+    const mode = (MODE_ALIASES[rawMode] || rawMode) as DumpMode;
+
+    if (!VALID_MODES.includes(mode)) {
+      console.error(
+        chalk.red(`Invalid mode "${rawMode}". Must be one of: ${VALID_MODES.join(", ")} (aliases: ${Object.keys(MODE_ALIASES).join(", ")})`),
+      );
+      process.exit(1);
+    }
 
     const apps = await device.enumerateApplications({ scope: Scope.Metadata });
     const app = apps.find(
@@ -163,7 +183,7 @@ async function main() {
         }
       });
 
-    const saved = await job.pack(opts.output);
+    const saved = await job.pack(opts.output, mode);
     console.log(`Saved to ${chalk.yellow(saved)}`);
     return;
   }
