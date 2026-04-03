@@ -188,7 +188,7 @@ export class BagBak extends EventEmitter {
     }
   }
 
-  async pack(suggested?: PathLike, mode: DumpMode = "all"): Promise<string> {
+  async pack(suggested?: PathLike, mode: DumpMode = "all", removeKeys: string[] = []): Promise<string> {
     const { session: coordSession, script: coordScript } = await this.#attach();
 
     try {
@@ -197,6 +197,7 @@ export class BagBak extends EventEmitter {
         (await coordScript.exports.prepare(
           this.remote,
           this.bundle,
+          removeKeys,
         )) as PrepareResult;
 
       const taskCount = Object.keys(tasks).length;

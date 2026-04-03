@@ -140,7 +140,7 @@ function zipDirectory(sourceDir: string, destPath: string): string {
 }
 
 rpc.exports = {
-  prepare(bundlePath: string, bundleId: string) {
+  prepare(bundlePath: string, bundleId: string, removeKeys: string[] = []) {
     const tmp = Process.getTmpDir().replace(/\/$/, "");
     const bundleName = bundlePath.split("/").pop()!;
     const base = tmp + "/.bagbak-" + bundleName;
@@ -173,7 +173,11 @@ rpc.exports = {
       );
 
     if (dict) {
-      dict.removeObjectForKey_("UISupportedDevices");
+      // it's ok to duplicate, removeObjectForKey_ silently fails
+      removeKeys.push("UISupportedDevices");
+      for (const key of removeKeys) {
+        dict.removeObjectForKey_(key);
+      }
       dict.writeToURL_atomically_(infoPlistURL, true);
     }
 

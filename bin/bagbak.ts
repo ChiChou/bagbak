@@ -34,6 +34,7 @@ interface Options {
   list?: boolean;
   json?: boolean;
   output?: string;
+  removeKeys?: string;
 }
 
 function getDeviceFromOptions(opts: Options): Promise<Device> {
@@ -75,6 +76,7 @@ async function main() {
 
     .option("-d, --debug", "enable debug output")
     .option("-o, --output <output>", "ipa filename or directory")
+    .option("--remove-keys <keys>", "additional Info.plist keys to remove (comma-separated)")
     .argument("[target]", "bundle id or name")
     .argument("[mode]", "dump mode: all, main (app), extensions (ext, exts), binaries (bin, executables)", "all")
     .version(version());
@@ -183,7 +185,11 @@ async function main() {
         }
       });
 
-    const saved = await job.pack(opts.output, mode);
+    const removeKeys = opts.removeKeys
+      ? opts.removeKeys.split(",").map((k) => k.trim())
+      : [];
+
+    const saved = await job.pack(opts.output, mode, removeKeys);
     console.log(`Saved to ${chalk.yellow(saved)}`);
     return;
   }

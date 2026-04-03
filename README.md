@@ -31,16 +31,24 @@ bagbak [bundle id or name]
 
 ```
 Options:
-  -l, --list             list apps
-  -j, --json             output as json (only works with --list)
-  -U, --usb              connect to USB device (default)
-  -R, --remote           connect to remote frida-server
-  -D, --device <uuid>    connect to device with the given ID
-  -H, --host <host>      connect to remote frida-server on HOST
-  -d, --debug            enable debug output
-  -o, --output <output>  ipa filename or directory to dump to
-  -h, --help             display help for command
+  -l, --list                list apps
+  -j, --json                output as json (only works with --list)
+  -U, --usb                 connect to USB device (default)
+  -R, --remote              connect to remote frida-server
+  -D, --device <uuid>       connect to device with the given ID
+  -H, --host <host>         connect to remote frida-server on HOST
+  -d, --debug               enable debug output
+  -o, --output <output>     ipa filename or directory to dump to
+  --remove-keys <keys>      additional Info.plist keys to remove (comma-separated)
+  -h, --help                display help for command
 ```
+
+Dump modes (second argument):
+
+* `all` (default) — full IPA with all binaries decrypted
+* `main` (alias: `app`) — decrypt main app binary only
+* `extensions` (aliases: `ext`, `exts`) — decrypt extension binaries only
+* `binaries` (aliases: `bin`, `executables`) — decrypt all binaries, output as zip
 
 Environments variables:
 
@@ -50,3 +58,5 @@ Example:
 
 * `bagbak -l` to list all apps
 * `bagbak com.google.chrome.ios` to dump app to `com.google.chrome.ios-[version].ipa`
+* `bagbak com.google.chrome.ios main` to dump only the main binary
+* `bagbak --remove-keys UISupportedDevices,UIRequiredDeviceCapabilities com.google.chrome.ios` to remove extra Info.plist keys
