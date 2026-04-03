@@ -132,6 +132,18 @@ rpc.exports = {
       fileMgr().removeItemAtPath_error_(root + "/" + f, NULL);
     }
 
+    const infoPlist = root + "/Info.plist";
+    const infoPlistURL = ObjC.classes.NSURL.fileURLWithPath_(infoPlist);
+    const dict =
+      ObjC.classes.NSMutableDictionary.alloc().initWithContentsOfURL_(
+        infoPlistURL,
+      );
+
+    if (dict) {
+      dict.removeObjectForKey_("UISupportedDevices");
+      dict.writeToURL_atomically_(infoPlistURL, true);
+    }
+
     const tasks: MachOTasks = {};
     scanDir(root, root, tasks);
 
