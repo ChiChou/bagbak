@@ -8,9 +8,12 @@ import chalk from "chalk";
 import type { Application, Device, Script } from "frida";
 import Controller from "frida-remote-stream";
 
-import { debug, directoryExists, readFromPackage } from "./lib/utils.ts";
+import { debug, directoryExists, readFromPackage, sleep } from "./lib/utils.ts";
 
 const MH_EXECUTE = 0x2;
+const MAX_DECRYPT_RETRIES = 3;
+
+export type DumpMode = "all" | "main" | "extensions" | "binaries";
 
 interface Extension {
   id: string;
@@ -97,6 +100,37 @@ export class BagBak extends EventEmitter {
     await session.detach();
   }
 
+  async #decryptWithRetry(
+    label: string,
+    spawnTarget: string | string[],
+    remoteRoot: string,
+    root: string,
+    binaries: Record<string, BinaryInfo>,
+    isExtension: boolean,
+  ): Promise<void> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= MAX_DECRYPT_RETRIES; attempt++) {
+      const pid = await this.#device.spawn(spawnTarget);
+      debug("spawned", label, "pid =>", pid);
+      try {
+        await this.#decrypt(pid, remoteRoot, root, binaries, isExtension);
+        return;
+      } catch (e) {
+        lastError = e;
+        if (attempt < MAX_DECRYPT_RETRIES) {
+          this.emit(
+            "status",
+            `Retry ${attempt}/${MAX_DECRYPT_RETRIES} for ${label}...`,
+          );
+          await sleep(1000);
+        }
+      } finally {
+        await this.#device.kill(pid).catch(() => {});
+      }
+    }
+    throw lastError;
+  }
+
   async #pull(coordScript: Script, zipPath: string, destPath: string) {
     const controller = new Controller();
 
@@ -154,11 +188,11 @@ export class BagBak extends EventEmitter {
     }
   }
 
-  async pack(suggested?: PathLike): Promise<string> {
+  async pack(suggested?: PathLike, mode: DumpMode = "all"): Promise<string> {
     const { session: coordSession, script: coordScript } = await this.#attach();
 
     try {
-      this.emit("status", "Copying app bundle on device...");
+      this.emit("status", "Preparing app bundle...");
       const { base, root, tasks, extensions, mainBinary } =
         (await coordScript.exports.prepare(
           this.remote,
@@ -203,56 +237,86 @@ export class BagBak extends EventEmitter {
         }
       }
 
-      if (Object.keys(binariesForMain).length) {
+      const decryptMain = mode !== "extensions";
+      const decryptExtensions = mode !== "main";
+
+      if (decryptMain && Object.keys(binariesForMain).length) {
         this.emit("status", "Decrypting main app...");
-        const pid = await this.#device.spawn(this.bundle);
-        debug("spawned app pid =>", pid);
-        try {
-          await this.#decrypt(pid, this.remote, root, binariesForMain, false);
-        } finally {
-          await this.#device.kill(pid).catch(() => {});
-        }
+        await this.#decryptWithRetry(
+          "main app",
+          this.bundle,
+          this.remote,
+          root,
+          binariesForMain,
+          false,
+        );
       }
 
-      for (const [extId, binaries] of groupByExtensions.entries()) {
-        if (Object.keys(binaries).length === 0) continue;
+      if (decryptExtensions) {
+        for (const [extId, binaries] of groupByExtensions.entries()) {
+          if (Object.keys(binaries).length === 0) continue;
 
-        const ext = extensions.find((e) => e.id === extId)!;
-        this.emit("status", `Decrypting extension ${extId}...`);
-        const pid = await this.#device.spawn([ext.abs]);
-        debug("extension", extId, "pid =>", pid);
-        try {
-          await this.#decrypt(pid, this.remote, root, binaries, true);
-        } finally {
-          await this.#device.kill(pid).catch(() => {});
+          const ext = extensions.find((e) => e.id === extId)!;
+          this.emit("status", `Decrypting extension ${extId}...`);
+          await this.#decryptWithRetry(
+            extId,
+            [ext.abs],
+            this.remote,
+            root,
+            binaries,
+            true,
+          );
         }
       }
-
-      this.emit("status", "Assembling IPA on device...");
-      const zipPath = (await coordScript.exports.zip(base)) as string;
-      debug("zip created at", zipPath);
 
       const ver = (this.#app.parameters.version as string) || "Unknown";
-      const defaultTemplate = `${this.bundle}-${ver}.ipa`;
+      let remotePath: string;
+      let defaultFilename: string;
+      let ext: string;
+
+      if (mode === "all") {
+        this.emit("status", "Packaging IPA...");
+        remotePath = (await coordScript.exports.zip(base)) as string;
+        ext = ".ipa";
+        defaultFilename = `${this.bundle}-${ver}.ipa`;
+      } else {
+        const files: string[] = [];
+        if (mode === "main" || mode === "binaries") {
+          files.push(...Object.keys(binariesForMain));
+        }
+        if (mode === "extensions" || mode === "binaries") {
+          for (const [extId, binaries] of groupByExtensions.entries()) {
+            files.push(...Object.keys(binaries));
+          }
+        }
+
+        this.emit("status", `Compressing ${files.length} binaries...`);
+        remotePath = (await coordScript.exports.zipFiles(
+          root,
+          files,
+        )) as string;
+        ext = ".zip";
+        defaultFilename = `${this.bundle}-${ver}-${mode}.zip`;
+      }
+
+      debug("remote path:", remotePath);
 
       const suggestedStr = suggested?.toString();
-      const ipa = suggestedStr
+      const dest = suggestedStr
         ? (await directoryExists(suggestedStr))
-          ? suggestedStr + "/" + defaultTemplate
+          ? suggestedStr + "/" + defaultFilename
           : suggestedStr
-        : defaultTemplate;
+        : defaultFilename;
 
-      if (!ipa.endsWith(".ipa"))
-        throw new Error(
-          `Invalid archive name ${suggested}, must end with .ipa`,
-        );
+      if (ext && !dest.endsWith(ext))
+        throw new Error(`Invalid filename ${dest}, expected ${ext} extension`);
 
-      this.emit("status", "Streaming IPA from device...");
-      await this.#pull(coordScript, zipPath, resolve(process.cwd(), ipa));
+      this.emit("status", "Downloading...");
+      await this.#pull(coordScript, remotePath, resolve(process.cwd(), dest));
 
       await coordScript.exports.cleanup(base);
 
-      return ipa;
+      return dest;
     } finally {
       await coordScript.unload().catch(() => {});
       await coordSession.detach().catch(() => {});
