@@ -85,6 +85,8 @@ export class BagBak extends EventEmitter {
 
     if (isExtension) {
       await script.exports.hookExtensionMain();
+    } else {
+      await script.exports.hookAppMain();
     }
 
     await this.#device.resume(pid);

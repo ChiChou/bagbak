@@ -11,28 +11,42 @@ const EXTENSION_SYMBOLS = [
   "ExtensionFoundation`EXExtensionMain",
 ];
 
-rpc.exports = {
-  hookExtensionMain() {
-    const CFRunLoopRun =
-      Process.getModuleByName("CoreFoundation").getExportByName("CFRunLoopRun");
+const APP_SYMBOLS = ["UIKitCore`UIApplicationMain", "AppKit`NSApplicationMain"];
 
-    for (const symbol of EXTENSION_SYMBOLS) {
-      const [dylib, func] = symbol.split("`");
-      try {
-        const p = Process.getModuleByName(dylib).getExportByName(func);
-        console.log("replace function", symbol, p);
-        Interceptor.replace(p, CFRunLoopRun);
-      } catch (e: any) {
-        console.log("skip", symbol, e.message);
-      }
+function replaceWithRunLoop(symbols: string[]) {
+  const CFRunLoopRun =
+    Process.getModuleByName("CoreFoundation").getExportByName("CFRunLoopRun");
+
+  for (const symbol of symbols) {
+    const [dylib, func] = symbol.split("`");
+    try {
+      const p = Process.getModuleByName(dylib).getExportByName(func);
+      console.log("replace function", symbol, p);
+      Interceptor.replace(p, CFRunLoopRun);
+    } catch (e: unknown) {
+      console.log("skip", symbol, (e as Error).message);
     }
+  }
 
-    ObjC.schedule(ObjC.mainQueue, () => {
-      console.log("mainQueue scheduled");
-    });
+  ObjC.schedule(ObjC.mainQueue, () => {
+    console.log("mainQueue scheduled");
+  });
+}
+
+rpc.exports = {
+  hookAppMain() {
+    replaceWithRunLoop(APP_SYMBOLS);
+  },
+  hookExtensionMain() {
+    replaceWithRunLoop(EXTENSION_SYMBOLS);
   },
 
-  dump(remoteRoot: string, tempRoot: string, binaries: MachOTasks, isExtension: boolean = false) {
+  dump(
+    remoteRoot: string,
+    tempRoot: string,
+    binaries: MachOTasks,
+    isExtension: boolean = false,
+  ) {
     const { open, close, pwrite, exit } = getApi();
 
     for (const [relative, info] of Object.entries(binaries)) {
