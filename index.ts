@@ -112,7 +112,9 @@ export class BagBak extends EventEmitter {
   ): Promise<void> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= MAX_DECRYPT_RETRIES; attempt++) {
-      const pid = await this.#device.spawn(spawnTarget);
+      const pid = await this.#device.spawn(spawnTarget, {
+        env: { DISABLE_TWEAKS: "1" },
+      });
       debug("spawned", label, "pid =>", pid);
       try {
         await this.#decrypt(pid, remoteRoot, root, binaries, isExtension);
@@ -293,7 +295,14 @@ export class BagBak extends EventEmitter {
           }
         }
 
-        this.emit("status", `Compressing ${files.length} binaries...`);
+        const plists = new Set<string>();
+        for (const f of files) {
+          const dir = f.lastIndexOf("/");
+          plists.add(dir === -1 ? "Info.plist" : f.substring(0, dir) + "/Info.plist");
+        }
+        files.push(...plists);
+
+        this.emit("status", `Compressing ${files.length} files...`);
         remotePath = (await coordScript.exports.zipFiles(
           root,
           files,
