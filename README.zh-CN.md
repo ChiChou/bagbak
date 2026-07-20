@@ -10,7 +10,15 @@
 
 已在 iOS 15 (Dopamine) 和 iOS 16 (palera1n) 上测试通过。
 
-*这个项目的名字没有任何含义，我写代码的时候正在听那首歌。*
+_这个项目的名字没有任何含义，我写代码的时候正在听那首歌。_
+
+## 本项目即将废弃
+
+推荐基于 `mremap_encrypted` 的方案：
+
+- [UnFairPlay](https://github.com/subdiox/UnFairPlay)（略作修改可在越狱 iOS 上使用）
+- [unfaird](https://github.com/Lakr233/unfaird)
+- [macOSAppstoreDecrypter](https://github.com/34306/macOSAppstoreDecrypter)
 
 ## 环境要求
 
@@ -18,7 +26,7 @@
 
 ### 设备端
 
-* [frida.re](https://www.frida.re/docs/ios/)
+- [frida.re](https://www.frida.re/docs/ios/)
 
 ### 电脑端
 
@@ -45,21 +53,21 @@ Options:
 
 解密模式 (第二个参数):
 
-* `all` (默认) — 完整 IPA，解密所有二进制文件
-* `main` (别名: `app`) — 仅解密主应用二进制文件
-* `extensions` (别名: `ext`, `exts`) — 仅解密扩展二进制文件
-* `binaries` (别名: `bin`, `executables`) — 解密所有二进制文件，输出为 zip
+- `all` (默认) — 完整 IPA，解密所有二进制文件
+- `main` (别名: `app`) — 仅解密主应用二进制文件
+- `extensions` (别名: `ext`, `exts`) — 仅解密扩展二进制文件
+- `binaries` (别名: `bin`, `executables`) — 解密所有二进制文件，输出为 zip
 
 环境变量:
 
-* `DEBUG=1` 启用调试输出
+- `DEBUG=1` 启用调试输出
 
 示例:
 
-* `bagbak -l` 列出所有应用
-* `bagbak com.google.chrome.ios` 解密应用并输出到 `com.google.chrome.ios-[version].ipa`
-* `bagbak com.google.chrome.ios main` 仅解密主应用二进制文件
-* `bagbak --remove-keys UISupportedDevices com.google.chrome.ios` 移除 Info.plist 中的设备限制
+- `bagbak -l` 列出所有应用
+- `bagbak com.google.chrome.ios` 解密应用并输出到 `com.google.chrome.ios-[version].ipa`
+- `bagbak com.google.chrome.ios main` 仅解密主应用二进制文件
+- `bagbak --remove-keys UISupportedDevices com.google.chrome.ios` 移除 Info.plist 中的设备限制
 
 <p align="center">想看更多中文技术分享？欢迎关注我的公众号</p>
 <p align="center"><image src="images/weixin.jpg" width="240" /></p>

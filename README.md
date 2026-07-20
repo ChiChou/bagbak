@@ -10,7 +10,17 @@ Yet another frida based App decryptor. Requires jailbroken iOS device and [frida
 
 Tested on iOS 15 (Dopamine) and iOS 16 (palera1n).
 
-*The name of this project doesn't have any meaning. I was just listening to that song while typing.*
+_The name of this project doesn't have any meaning. I was just listening to that song while typing._
+
+## Deprecation
+
+This decryption approach is no longer recommended. It requires running the target app, which is limited by the target SDK, RASP, etc. The `mremap_encrypted` approach does not require running the app at all.
+
+Alternatives based on `mremap_encrypted`:
+
+- [UnFairPlay](https://github.com/subdiox/UnFairPlay) (with some tweak, it also works on jailbroken iOS)
+- [unfaird](https://github.com/Lakr233/unfaird)
+- [macOSAppstoreDecrypter](https://github.com/34306/macOSAppstoreDecrypter)
 
 ## Prerequisites
 
@@ -18,11 +28,11 @@ Tested on iOS 15 (Dopamine) and iOS 16 (palera1n).
 
 ### On device
 
-* [frida.re](https://www.frida.re/docs/ios/)
+- [frida.re](https://www.frida.re/docs/ios/)
 
 ### On desktop
 
-- [node.js](https://nodejs.org/). 
+- [node.js](https://nodejs.org/).
 - `npm install -g bagbak`
 
 ## Usage
@@ -45,18 +55,18 @@ Options:
 
 Dump modes (second argument):
 
-* `all` (default) — full IPA with all binaries decrypted
-* `main` (alias: `app`) — decrypt main app binary only
-* `extensions` (aliases: `ext`, `exts`) — decrypt extension binaries only
-* `binaries` (aliases: `bin`, `executables`) — decrypt all binaries, output as zip
+- `all` (default) — full IPA with all binaries decrypted
+- `main` (alias: `app`) — decrypt main app binary only
+- `extensions` (aliases: `ext`, `exts`) — decrypt extension binaries only
+- `binaries` (aliases: `bin`, `executables`) — decrypt all binaries, output as zip
 
 Environments variables:
 
-* `DEBUG=1` enable debug output for troubleshooting
+- `DEBUG=1` enable debug output for troubleshooting
 
 Example:
 
-* `bagbak -l` to list all apps
-* `bagbak com.google.chrome.ios` to dump app to `com.google.chrome.ios-[version].ipa`
-* `bagbak com.google.chrome.ios main` to dump only the main binary
-* `bagbak --remove-keys UISupportedDevices com.google.chrome.ios` to remove device restrictions from Info.plist
+- `bagbak -l` to list all apps
+- `bagbak com.google.chrome.ios` to dump app to `com.google.chrome.ios-[version].ipa`
+- `bagbak com.google.chrome.ios main` to dump only the main binary
+- `bagbak --remove-keys UISupportedDevices com.google.chrome.ios` to remove device restrictions from Info.plist
