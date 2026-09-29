@@ -5,6 +5,9 @@
   "private": true,
   "main": "src/index.ts",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "prepare": "npm run build",
     "build": "frida-compile src/springboard.ts -o dist/springboard.js -c && frida-compile src/app.ts -o dist/app.js -c",
